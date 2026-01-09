@@ -18,14 +18,12 @@ char *fetch(const char *url)
     ret = httpcOpenContext(&context, HTTPC_METHOD_GET, url, 1);
     if (R_FAILED(ret))
     {
-        printf("httpcOpenContext error: %08lX\n", ret);
         return NULL;
     }
 
     ret = httpcBeginRequest(&context);
     if (R_FAILED(ret))
     {
-        printf("httpcBeginRequest error: %08lX\n", ret);
         httpcCloseContext(&context);
         return NULL;
     }
@@ -35,7 +33,6 @@ char *fetch(const char *url)
 
     if (statusCode != 200)
     {
-        printf("HTTP status: %lu\n", statusCode);
         httpcCloseContext(&context);
         return NULL;
     }
@@ -52,7 +49,6 @@ char *fetch(const char *url)
     char *buffer = (char *)malloc(totalSize + 1);
     if (!buffer)
     {
-        printf("Error allocating memory.\n");
         httpcCloseContext(&context);
         return NULL;
     }
@@ -61,7 +57,6 @@ char *fetch(const char *url)
     ret = httpcReceiveData(&context, (u8 *)buffer, totalSize);
     if (R_FAILED(ret))
     {
-        printf("httpcReceiveData error: %08lX\n", ret);
         free(buffer);
         httpcCloseContext(&context);
         return NULL;
