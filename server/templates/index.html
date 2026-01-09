@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Spotify OAuth Setup</title>
+</head>
+<body>
+    <h1>Spotify OAuth Setup</h1>
+    <form id="spotifyForm" method="get" action="/authorize">
+        <label>Client ID:<br>
+            <input type="text" name="client_id" required>
+        </label>
+        <br><br>
+        <label>Client Secret:<br>
+            <input type="text" name="client_secret" required>
+        </label>
+        <br><br>
+        <button type="submit">Generate Authorization URL</button>
+    </form>
+</body>
+</html>

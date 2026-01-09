@@ -1,0 +1,35 @@
+# Ignore Python cache and environment files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+env/
+venv/
+*.env
+
+# Ignore compiled C files and build artifacts
+*.o
+*.elf
+*.3dsx
+*.smdh
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore user-specific files
+*.swp
+*.swo
+
+# Ignore config and secrets
+server/spotify_config.json
+
+# Ignore VSCode settings
+.vscode/
