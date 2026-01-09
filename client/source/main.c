@@ -86,6 +86,8 @@ int main(int argc, char **argv)
     cfguInit();
     httpcInit(0);
     consoleInit(GFX_TOP, NULL);
+    bool is_playing = false;
+    char url[128];
 
     // Ensure directory exists
     ensureDirectory(CONFIG_DIR);
@@ -115,8 +117,8 @@ int main(int argc, char **argv)
         if (kDown & KEY_START)
             break;
 
-        // Re-enter IP on pressing A
-        if (kDown & KEY_A)
+        // Re-enter IP on pressing Y
+        if (kDown & KEY_Y)
         {
             clearScreen();
             char *input = askUser("Enter new server IP address:");
@@ -128,6 +130,25 @@ int main(int argc, char **argv)
             printf("\x1b[1;%dH%s\n", col_connect + 1, connect_msg);
         }
 
+        if (kDown & KEY_A)
+        {
+            if (is_playing)
+                snprintf(url, sizeof(url), "http://%s:8000/pause", server_ip);
+            else
+                snprintf(url, sizeof(url), "http://%s:8000/play", server_ip);
+            fetch(url);
+        }
+        if (kDown & KEY_DRIGHT)
+        {
+            snprintf(url, sizeof(url), "http://%s:8000/next", server_ip);
+            fetch(url);
+        }
+        if (kDown & KEY_DLEFT)
+        {
+            snprintf(url, sizeof(url), "http://%s:8000/previous", server_ip);
+            fetch(url);
+        }
+
         // Fetch every 3 seconds
         static u32 lastTick = 0;
         u32 currentTick = osGetTime();
@@ -136,7 +157,6 @@ int main(int argc, char **argv)
         {
             lastTick = currentTick;
 
-            char url[128];
             snprintf(url, sizeof(url), "http://%s:8000/now-playing", server_ip);
 
             char *json = fetch(url);
@@ -146,7 +166,6 @@ int main(int argc, char **argv)
                 char *artist = get("artist", json);
                 char *is_playing_str = get("is_playing", json);
 
-                bool is_playing = false;
                 if (is_playing_str)
                     is_playing = strcmp(is_playing_str, "true") == 0;
 
@@ -162,18 +181,20 @@ int main(int argc, char **argv)
                 snprintf(line1, sizeof(line1),
                          is_playing ? "Now playing:" : "Playback paused:");
                 int col1 = center(line1, SCREEN_WIDTH);
-                // Line 1: empty
-                printf("\x1b[1;1H\n");
-                // Line 2: status
+                printf("\x1b[1;1H\n"); // Space
+
+                // Status
                 printf("\x1b[2;%dH%s\n", col1 + 1, line1);
-                // Line 3: empty
-                printf("\x1b[3;1H\n");
-                // Line 4: track
+
+                printf("\x1b[3;1H\n"); // Space
+
+                // Track
                 int col_track = center(track, SCREEN_WIDTH);
                 printf("\x1b[4;%dH%s\n", col_track + 1, track);
-                // Line 5: empty
-                printf("\x1b[5;1H\n");
-                // Line 6: artist
+
+                printf("\x1b[5;1H\n"); // Space
+
+                // Artist
                 int col_artist = center(artist, SCREEN_WIDTH);
                 printf("\x1b[6;%dH%s", col_artist + 1, artist);
 
