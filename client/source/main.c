@@ -98,7 +98,8 @@ int main(int argc, char **argv)
     if (!loadIP(server_ip, sizeof(server_ip)))
     {
         char *input = askUser("Enter server IP address:");
-        strncpy(server_ip, input, sizeof(server_ip));
+        strncpy(server_ip, input, sizeof(server_ip) - 1);
+        server_ip[sizeof(server_ip) - 1] = '\0';
         saveIP(server_ip);
     }
 
@@ -122,7 +123,8 @@ int main(int argc, char **argv)
         {
             clearScreen();
             char *input = askUser("Enter new server IP address:");
-            strncpy(server_ip, input, sizeof(server_ip));
+            strncpy(server_ip, input, sizeof(server_ip) - 1);
+            server_ip[sizeof(server_ip) - 1] = '\0';
             saveIP(server_ip);
 
             snprintf(connect_msg, sizeof(connect_msg), "Connecting to %s...", server_ip);
