@@ -75,9 +75,20 @@ char *askUser(const char *prompt)
     return inputbuf;
 }
 
+// -------------------
+// |     Helpers     |
+// -------------------
+
+// Clear screen
 void clearScreen()
 {
     printf("\x1b[2J");
+}
+
+// Helper to build URLs
+void build_url(char *buf, size_t buflen, const char *server_ip, const char *endpoint)
+{
+    snprintf(buf, buflen, "http://%s:8000/%s", server_ip, endpoint);
 }
 
 int main(int argc, char **argv)
@@ -135,19 +146,19 @@ int main(int argc, char **argv)
         if (kDown & KEY_A)
         {
             if (is_playing)
-                snprintf(url, sizeof(url), "http://%s:8000/pause", server_ip);
+                build_url(url, sizeof(url), server_ip, "pause");
             else
-                snprintf(url, sizeof(url), "http://%s:8000/play", server_ip);
+                build_url(url, sizeof(url), server_ip, "play");
             fetch(url);
         }
         if (kDown & KEY_DRIGHT)
         {
-            snprintf(url, sizeof(url), "http://%s:8000/next", server_ip);
+            build_url(url, sizeof(url), server_ip, "next");
             fetch(url);
         }
         if (kDown & KEY_DLEFT)
         {
-            snprintf(url, sizeof(url), "http://%s:8000/previous", server_ip);
+            build_url(url, sizeof(url), server_ip, "previous");
             fetch(url);
         }
 
@@ -159,8 +170,7 @@ int main(int argc, char **argv)
         {
             lastTick = currentTick;
 
-            snprintf(url, sizeof(url), "http://%s:8000/now-playing", server_ip);
-
+            build_url(url, sizeof(url), server_ip, "now-playing");
             char *json = fetch(url);
             if (json)
             {
