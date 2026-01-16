@@ -67,3 +67,23 @@ char *fetch(const char *url)
     httpcCloseContext(&context);
     return buffer;
 }
+
+// ------------------------------
+// Returns a char* with the JSON
+// Returns NULL on failure
+// Caller must free()
+// url: base URL, params: query string (e.g. "foo=1&bar=2")
+// ------------------------------
+char *fetch_with_params(const char *url, const char *params)
+{
+    char full_url[512];
+    if (params && strlen(params) > 0)
+    {
+        snprintf(full_url, sizeof(full_url), "%s?%s", url, params);
+    }
+    else
+    {
+        snprintf(full_url, sizeof(full_url), "%s", url);
+    }
+    return fetch(full_url);
+}

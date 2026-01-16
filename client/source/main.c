@@ -145,6 +145,9 @@ int main(int argc, char **argv)
     static u32 lastTick = 0;
     char *track = NULL;
     char *artist = NULL;
+    char *device_name = NULL;
+    char *volume_str = NULL;
+    int volume = 0;
     char *is_playing_str = NULL;
     bool need_refresh = true;
 
@@ -199,6 +202,31 @@ int main(int argc, char **argv)
             fetch(url);
             need_refresh = true;
         }
+        if (kDown & KEY_DUP || kDown & KEY_DDOWN)
+        {
+            build_url(url, sizeof(url), server_ip, "volume");
+            char params[32];
+            if (kDown & KEY_DUP)
+            {
+                if (volume <= 90)
+                    volume += 10;
+                else
+                    volume = 100;
+            }
+            if (kDown & KEY_DDOWN)
+            {
+                if (volume >= 10)
+                    volume -= 10;
+                else
+                    volume = 0;
+            }
+            if (volume > 0 || volume < 100)
+            {
+                snprintf(params, sizeof(params), "volume_percent=%d", volume);
+                fetch_with_params(url, params);
+                need_refresh = true;
+            }
+        }
 
         // Start async fetch if needed and not already in progress
         if ((need_refresh || (currentTick - lastTick >= 5000)) && !fetchInProgress)
@@ -231,10 +259,16 @@ int main(int argc, char **argv)
                     free(artist);
                 if (is_playing_str)
                     free(is_playing_str);
+                if (device_name)
+                    free(device_name);
+                if (volume_str)
+                    free(volume_str);
 
                 track = get("name", json);
                 artist = get("artist", json);
                 is_playing_str = get("is_playing", json);
+                device_name = get("device", json);
+                volume_str = get("volume_percent", json);
 
                 if (is_playing_str)
                     is_playing = strcmp(is_playing_str, "true") == 0;
@@ -243,6 +277,12 @@ int main(int argc, char **argv)
                     track = strdup("Unknown");
                 if (!artist)
                     artist = strdup("Unknown");
+                if (!device_name)
+                    device_name = strdup("Unknown Device");
+                if (!volume_str)
+                    volume_str = strdup("N/A");
+                else
+                    volume = atoi(volume_str);
 
                 clearScreen();
 
@@ -267,6 +307,20 @@ int main(int argc, char **argv)
                 // Artist
                 int col_artist = center(artist, SCREEN_WIDTH);
                 printf("\x1b[6;%dH%s", col_artist + 1, artist);
+
+                // Playing in device
+                char device_line[128];
+                snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
+                int col_device = center(device_line, SCREEN_WIDTH);
+                printf("\x1b[8;%dH%s\n", col_device + 1, device_line);
+
+                printf("\x1b[9;1H\n"); // Space
+
+                // Volume
+                char volume_line[64];
+                snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str);
+                int col_volume = center(volume_line, SCREEN_WIDTH);
+                printf("\x1b[10;%dH%s\n", col_volume + 1, volume_line);
 
                 free(json);
             }

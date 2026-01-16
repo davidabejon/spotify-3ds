@@ -113,46 +113,51 @@ async def authorize(client_id: str, client_secret: str):
     return RedirectResponse(auth_url)
 
 # ----------------------------
-# Endpoint to get current track
+# Unified endpoint for now-playing and player state
 # ----------------------------
 @app.get("/now-playing")
-def now_playing():
+def now_playing_and_state():
     token_data, error = get_access_token()
     if error:
         return JSONResponse({"error": error}, status_code=400)
 
     access_token = token_data["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
-    resp = requests.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers)
 
-    if resp.status_code == 204:
-        return JSONResponse({"status": "no track playing"})
-    elif resp.status_code != 200:
-        return JSONResponse({"error": resp.json()}, status_code=resp.status_code)
+    # Get currently playing track
+    resp_track = requests.get("https://api.spotify.com/v1/me/player/currently-playing", headers=headers)
+    # Get player state
+    resp_state = requests.get("https://api.spotify.com/v1/me/player", headers=headers)
 
-    data = resp.json()
-    track_info = {
-        "name": data["item"]["name"],
-        "artist": data["item"]["artists"][0]["name"],
-        "album": data["item"]["album"]["name"],
-        "is_playing": data["is_playing"]
-    }
-    return JSONResponse(track_info)
+    result = {}
 
-@app.get("/player-state")
-def player_state():
-    token_data, error = get_access_token()
-    if error:
-        return JSONResponse({"error": error}, status_code=400)
-    access_token = token_data["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
-    resp = requests.get("https://api.spotify.com/v1/me/player", headers=headers)
+    # Track info
+    if resp_track.status_code == 204:
+        result["track"] = {"status": "no track playing"}
+    elif resp_track.status_code != 200:
+        result["track"] = {"error": resp_track.json()}
+    else:
+        data = resp_track.json()
+        result["track"] = {
+            "name": data["item"]["name"],
+            "artist": data["item"]["artists"][0]["name"],
+            "album": data["item"]["album"]["name"],
+            "is_playing": data["is_playing"]
+        }
 
-    if resp.status_code != 200:
-        return JSONResponse({"error": resp.json()}, status_code=resp.status_code)
+    # Player state
+    if resp_state.status_code == 204:
+        result["player_state"] = {"status": "no active device"}
+    elif resp_state.status_code != 200:
+        result["player_state"] = {"error": resp_state.json()}
+    else:
+        data = resp_state.json()
+        result["player_state"] = {
+            "device": data["device"]["name"],
+            "volume_percent": data["device"]["volume_percent"],
+        }
 
-    data = resp.json()
-    return JSONResponse(data)
+    return JSONResponse(result)
 
 # ----------------------------
 # Playback control
@@ -203,18 +208,10 @@ def previous_track(device_id: str = None):
     resp = spotify_post("previous", token_data["access_token"], device_id)
     return JSONResponse({"status": resp.status_code})
 
-@app.get("/volume-up")
+@app.get("/volume")
 def volume_up(device_id: str = None, volume_percent: int = 10):
     token_data, error = get_access_token()
     if error:
         return JSONResponse({"error": error}, status_code=400)
     resp = spotify_put("volume", token_data["access_token"], device_id, params={"volume_percent": volume_percent})
-    return JSONResponse({"status": resp.status_code})
-
-@app.get("/volume-down")
-def volume_down(device_id: str = None, volume_percent: int = 10):
-    token_data, error = get_access_token()
-    if error:
-        return JSONResponse({"error": error}, status_code=400)
-    resp = spotify_put("volume", token_data["access_token"], device_id, params={"volume_percent": -volume_percent})
     return JSONResponse({"status": resp.status_code})
