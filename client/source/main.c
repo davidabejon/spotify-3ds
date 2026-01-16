@@ -32,7 +32,7 @@ void fetch_worker(void *arg)
 #define CONFIG_DIR "sdmc:/3ds/spotify-3ds"
 #define CONFIG_PATH "sdmc:/3ds/spotify-3ds/ip.cfg"
 
-const int SCREEN_WIDTH = 50;
+const int SCREEN_WIDTH = 40;
 
 // Ensures directory exists
 void ensureDirectory(const char *path)
@@ -117,7 +117,9 @@ int main(int argc, char **argv)
     gfxInitDefault();
     cfguInit();
     httpcInit(0);
-    consoleInit(GFX_TOP, NULL);
+    PrintConsole bottomConsole;
+    consoleInit(GFX_BOTTOM, &bottomConsole);
+    consoleSelect(&bottomConsole);
     bool is_playing = false;
     char url[128];
 
