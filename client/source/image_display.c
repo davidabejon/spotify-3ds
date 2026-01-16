@@ -172,36 +172,184 @@ void drawImageToScreen(u8 *pixels, int width, int height)
         return; // No framebuffer
     }
 
-    // Clear the framebuffer
-    memset(fb, 0, fbWidth * fbHeight * 3);
+    // Fill the framebuffer with a solid color (e.g., dark gray) before drawing
+    for (int i = 0; i < fbWidth * fbHeight; i++) {
+        fb[i * 3 + 0] = 96;   // Blue
+        fb[i * 3 + 1] = 215;  // Green
+        fb[i * 3 + 2] = 30;   // Red
+    }
 
     // The top screen is 400x240 but framebuffer is 240x400 (rotated)
-    // Calculate scale to fit the entire image
-    float scaleX = 400.0f / width;
-    float scaleY = 240.0f / height;
+    // Calculate scale to fit the entire image (accounting for 4px border on each side)
+    // AND making the image 10px smaller in each direction
+    float scaleX = (400.0f - 8.0f - 20.0f) / width;   // Subtract border (8px) and 10px padding on each side (20px total)
+    float scaleY = (240.0f - 8.0f - 20.0f) / height;  // Subtract border (8px) and 10px padding on each side (20px total)
     float scale = (scaleX < scaleY) ? scaleX : scaleY;
 
     int scaledWidth = (int)(width * scale);
     int scaledHeight = (int)(height * scale);
 
-    // Ensure scaled dimensions don't exceed screen
-    if (scaledWidth > 400)
-        scaledWidth = 400;
-    if (scaledHeight > 240)
-        scaledHeight = 240;
+    // Ensure scaled dimensions don't exceed available space (accounting for border and padding)
+    int maxWidth = 400 - 8 - 20;  // Screen width - border - padding
+    int maxHeight = 240 - 8 - 20; // Screen height - border - padding
+    
+    if (scaledWidth > maxWidth)
+        scaledWidth = maxWidth;
+    if (scaledHeight > maxHeight)
+        scaledHeight = maxHeight;
     if (scaledWidth <= 0)
         scaledWidth = 1;
     if (scaledHeight <= 0)
         scaledHeight = 1;
 
-    // Center the scaled image
-    int startX = (400 - scaledWidth) / 2;
-    int startY = (240 - scaledHeight) / 2;
+    // Center the scaled image (accounting for border AND 10px padding)
+    int imageStartX = (400 - scaledWidth) / 2;
+    int imageStartY = (240 - scaledHeight) / 2;
+    int imageEndX = imageStartX + scaledWidth;
+    int imageEndY = imageStartY + scaledHeight;
 
+    // Corner radius for slightly rounded corners (8 pixels radius)
+    const int cornerRadius = 8;
+    
+    // Border width
+    const int borderWidth = 4;
+    
+    // Outer border coordinates (including the border)
+    int outerStartX = imageStartX - borderWidth;
+    int outerStartY = imageStartY - borderWidth;
+    int outerEndX = imageEndX + borderWidth;
+    int outerEndY = imageEndY + borderWidth;
+    
+    // Outer corner radius (larger for the border)
+    int outerCornerRadius = cornerRadius + borderWidth;
+
+    // SIMPLIFIED: Draw the entire white border area first (including corners)
+    // This will create a white rectangle with rounded corners
+    for (int y = outerStartY; y < outerEndY; y++) {
+        for (int x = outerStartX; x < outerEndX; x++) {
+            // Skip if outside screen bounds
+            if (x < 0 || x >= 400 || y < 0 || y >= 240) {
+                continue;
+            }
+            
+            // Check if this pixel is within the rounded border area
+            bool inBorderArea = false;
+            
+            // Check all four corners
+            // Top-left corner
+            if (x < outerStartX + outerCornerRadius && y < outerStartY + outerCornerRadius) {
+                int dx = (outerStartX + outerCornerRadius) - x;
+                int dy = (outerStartY + outerCornerRadius) - y;
+                if (dx * dx + dy * dy <= outerCornerRadius * outerCornerRadius) {
+                    inBorderArea = true;
+                }
+            }
+            // Top-right corner
+            else if (x >= outerEndX - outerCornerRadius && y < outerStartY + outerCornerRadius) {
+                int dx = x - (outerEndX - outerCornerRadius);
+                int dy = (outerStartY + outerCornerRadius) - y;
+                if (dx * dx + dy * dy <= outerCornerRadius * outerCornerRadius) {
+                    inBorderArea = true;
+                }
+            }
+            // Bottom-left corner
+            else if (x < outerStartX + outerCornerRadius && y >= outerEndY - outerCornerRadius) {
+                int dx = (outerStartX + outerCornerRadius) - x;
+                int dy = y - (outerEndY - outerCornerRadius);
+                if (dx * dx + dy * dy <= outerCornerRadius * outerCornerRadius) {
+                    inBorderArea = true;
+                }
+            }
+            // Bottom-right corner
+            else if (x >= outerEndX - outerCornerRadius && y >= outerEndY - outerCornerRadius) {
+                int dx = x - (outerEndX - outerCornerRadius);
+                int dy = y - (outerEndY - outerCornerRadius);
+                if (dx * dx + dy * dy <= outerCornerRadius * outerCornerRadius) {
+                    inBorderArea = true;
+                }
+            }
+            // Not in a corner - check if it's within the rectangle area
+            else {
+                inBorderArea = true;
+            }
+            
+            // Draw the white border pixel
+            if (inBorderArea) {
+                // Convert to framebuffer coordinates (rotated)
+                int fbX = 239 - y;
+                int fbY = x;
+                
+                // Ensure within framebuffer bounds
+                if (fbX >= 0 && fbX < 240 && fbY >= 0 && fbY < 400) {
+                    int fbIdx = (fbX + fbY * 240) * 3;
+                    // Draw white border
+                    fb[fbIdx + 0] = 255;     // Blue
+                    fb[fbIdx + 1] = 255;     // Green  
+                    fb[fbIdx + 2] = 255;     // Red
+                }
+            }
+        }
+    }
+
+    // Draw the actual image content with rounded corners
+    // The image will be drawn on top of the white border
     for (int screenY = 0; screenY < scaledHeight; screenY++)
     {
+        int posY = imageStartY + screenY;
+        
         for (int screenX = 0; screenX < scaledWidth; screenX++)
         {
+            int posX = imageStartX + screenX;
+            
+            // Check if pixel is within the image's rounded rectangle area
+            bool inImageArea = false;
+            
+            // First check if it's within the rectangular bounds
+            if (posX >= imageStartX && posX < imageEndX && posY >= imageStartY && posY < imageEndY) {
+                // Now check corners
+                // Top-left corner
+                if (posX < imageStartX + cornerRadius && posY < imageStartY + cornerRadius) {
+                    int dx = (imageStartX + cornerRadius) - posX;
+                    int dy = (imageStartY + cornerRadius) - posY;
+                    if (dx * dx + dy * dy <= cornerRadius * cornerRadius) {
+                        inImageArea = true;
+                    }
+                }
+                // Top-right corner
+                else if (posX >= imageEndX - cornerRadius && posY < imageStartY + cornerRadius) {
+                    int dx = posX - (imageEndX - cornerRadius);
+                    int dy = (imageStartY + cornerRadius) - posY;
+                    if (dx * dx + dy * dy <= cornerRadius * cornerRadius) {
+                        inImageArea = true;
+                    }
+                }
+                // Bottom-left corner
+                else if (posX < imageStartX + cornerRadius && posY >= imageEndY - cornerRadius) {
+                    int dx = (imageStartX + cornerRadius) - posX;
+                    int dy = posY - (imageEndY - cornerRadius);
+                    if (dx * dx + dy * dy <= cornerRadius * cornerRadius) {
+                        inImageArea = true;
+                    }
+                }
+                // Bottom-right corner
+                else if (posX >= imageEndX - cornerRadius && posY >= imageEndY - cornerRadius) {
+                    int dx = posX - (imageEndX - cornerRadius);
+                    int dy = posY - (imageEndY - cornerRadius);
+                    if (dx * dx + dy * dy <= cornerRadius * cornerRadius) {
+                        inImageArea = true;
+                    }
+                }
+                // Not in a corner area - it's in the main rectangle
+                else {
+                    inImageArea = true;
+                }
+            }
+            
+            // Skip drawing if pixel is NOT in the image's rounded area
+            if (!inImageArea) {
+                continue;
+            }
+
             // Map back to source image
             int srcX = (int)(screenX / scale);
             int srcY = (int)(screenY / scale);
@@ -215,17 +363,6 @@ void drawImageToScreen(u8 *pixels, int width, int height)
             u8 r = pixels[srcIdx + 0];
             u8 g = pixels[srcIdx + 1];
             u8 b = pixels[srcIdx + 2];
-            // Note: skipping alpha channel as 3DS doesn't support it
-
-            // Actual screen position
-            int posX = startX + screenX;
-            int posY = startY + screenY;
-
-            // Ensure within screen bounds
-            if (posX < 0 || posX >= 400 || posY < 0 || posY >= 240)
-            {
-                continue;
-            }
 
             // Convert to framebuffer coordinates (rotated)
             int fbX = 239 - posY;
@@ -240,7 +377,7 @@ void drawImageToScreen(u8 *pixels, int width, int height)
             int fbIdx = (fbX + fbY * 240) * 3;
             int maxFbIdx = fbWidth * fbHeight * 3 - 3;
 
-            // Write BGR (with bounds check)
+            // Write BGR (with bounds check) - this overwrites the white border
             if (fbIdx >= 0 && fbIdx <= maxFbIdx)
             {
                 fb[fbIdx + 0] = b;
