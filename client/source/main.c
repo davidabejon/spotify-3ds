@@ -98,10 +98,6 @@ char *askUser(const char *prompt)
     return inputbuf;
 }
 
-// -------------------
-// |     Helpers     |
-// -------------------
-
 // Clear screen
 void clearScreen()
 {
@@ -158,8 +154,8 @@ int main(int argc, char **argv)
 
     // Image data variables
     char *imageURL = NULL;
-    u32 imageSize = 0;
-    u8* imageData = NULL;
+    u8 *imagePixels = NULL;
+    int imageWidth = 0, imageHeight = 0;
 
     // Async fetch state
     FetchJob fetchJob;
@@ -273,12 +269,6 @@ int main(int argc, char **argv)
                     free(device_name);
                 if (volume_str)
                     free(volume_str);
-                if (imageData)
-                {
-                    free(imageData);
-                    imageData = NULL;
-                    imageSize = 0;
-                }
 
                 track = get("name", json);
                 artist = get("artist", json);
@@ -339,29 +329,35 @@ int main(int argc, char **argv)
                 int col_volume = center(volume_line, SCREEN_WIDTH);
                 printf("\x1b[10;%dH%s\n", col_volume + 1, volume_line);
 
-                if (ret != 0)
+                // Handle image download/display
+                if (ret == 0 && imageURL && strlen(imageURL) > 0)
                 {
-                    // print error message on upper screen
-                    const char *err_msg = "Network initialization failed!";
-                    int col_err = center(err_msg, SCREEN_WIDTH);
-                    printf("\x1b[1;%dH%s\n", col_err + 1, err_msg);
-                }
-                else
-                {
-                    // Download and display image if URL changed
-                    if (imageURL && strlen(imageURL) > 0)
+                    // Free old image data
+                    if (imagePixels)
                     {
-                        imageData = downloadImage(imageURL, &imageSize);
-                        if (imageData && imageSize > 0)
+                        stbi_image_free(imagePixels);
+                        imagePixels = NULL;
+                        imageWidth = 0;
+                        imageHeight = 0;
+                    }
+
+                    // Download and decode image
+                    u32 imageSize = 0;
+                    u8 *imageData = downloadImage(imageURL, &imageSize);
+                    if (imageData && imageSize > 0)
+                    {
+                        imagePixels = stbi_load_from_memory(imageData, imageSize,
+                                                            &imageWidth, &imageHeight, NULL, STBI_rgb_alpha);
+                        free(imageData);
+
+                        if (!imagePixels)
                         {
-                            int width, height, channels;
-                            u8 *pixels = stbi_load_from_memory(imageData, imageSize, &width, &height, &channels, STBI_rgb_alpha);
-                            if (pixels)
-                            {
-                                drawImageToScreen(pixels, width, height);
-                                stbi_image_free(pixels);
-                            }
+                            printf("Failed to decode image\n");
                         }
+                    }
+                    else if (imageData)
+                    {
+                        free(imageData);
                     }
                 }
 
@@ -375,17 +371,28 @@ int main(int argc, char **argv)
             }
         }
 
-        gfxFlushBuffers();
-        gfxSwapBuffers();
+        // Draw image if we have one
+        if (imagePixels)
+        {
+            drawImageToScreen(imagePixels, imageWidth, imageHeight);
+        }
+
         gspWaitForVBlank();
     }
 
+    // Cleanup
     if (track)
         free(track);
     if (artist)
         free(artist);
     if (is_playing_str)
         free(is_playing_str);
+    if (device_name)
+        free(device_name);
+    if (volume_str)
+        free(volume_str);
+    if (imagePixels)
+        stbi_image_free(imagePixels);
 
     cleanupNetwork();
     httpcExit();
