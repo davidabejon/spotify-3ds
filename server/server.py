@@ -156,6 +156,7 @@ def now_playing_and_state():
             "device": data["device"]["name"],
             "volume_percent": data["device"]["volume_percent"],
         }
+        result["image_url"] = data["item"]["album"]["images"][0]["url"]
 
     return JSONResponse(result)
 

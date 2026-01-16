@@ -1,4 +1,3 @@
-
 #include <3ds/thread.h>
 #include <3ds/synchronization.h>
 #include <stdio.h>
@@ -10,6 +9,9 @@
 
 #include "fetch.h"
 #include "parse.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#include "image_display.h"
 
 // Struct for async fetch result
 typedef struct
@@ -117,6 +119,7 @@ int main(int argc, char **argv)
     gfxInitDefault();
     cfguInit();
     httpcInit(0);
+    Result ret = initNetwork();
     PrintConsole bottomConsole;
     consoleInit(GFX_BOTTOM, &bottomConsole);
     consoleSelect(&bottomConsole);
@@ -152,6 +155,11 @@ int main(int argc, char **argv)
     int volume = 0;
     char *is_playing_str = NULL;
     bool need_refresh = true;
+
+    // Image data variables
+    char *imageURL = NULL;
+    u32 imageSize = 0;
+    u8* imageData = NULL;
 
     // Async fetch state
     FetchJob fetchJob;
@@ -265,12 +273,19 @@ int main(int argc, char **argv)
                     free(device_name);
                 if (volume_str)
                     free(volume_str);
+                if (imageData)
+                {
+                    free(imageData);
+                    imageData = NULL;
+                    imageSize = 0;
+                }
 
                 track = get("name", json);
                 artist = get("artist", json);
                 is_playing_str = get("is_playing", json);
                 device_name = get("device", json);
                 volume_str = get("volume_percent", json);
+                imageURL = get("image_url", json);
 
                 if (is_playing_str)
                     is_playing = strcmp(is_playing_str, "true") == 0;
@@ -324,6 +339,32 @@ int main(int argc, char **argv)
                 int col_volume = center(volume_line, SCREEN_WIDTH);
                 printf("\x1b[10;%dH%s\n", col_volume + 1, volume_line);
 
+                if (ret != 0)
+                {
+                    // print error message on upper screen
+                    const char *err_msg = "Network initialization failed!";
+                    int col_err = center(err_msg, SCREEN_WIDTH);
+                    printf("\x1b[1;%dH%s\n", col_err + 1, err_msg);
+                }
+                else
+                {
+                    // Download and display image if URL changed
+                    if (imageURL && strlen(imageURL) > 0)
+                    {
+                        imageData = downloadImage(imageURL, &imageSize);
+                        if (imageData && imageSize > 0)
+                        {
+                            int width, height, channels;
+                            u8 *pixels = stbi_load_from_memory(imageData, imageSize, &width, &height, &channels, STBI_rgb_alpha);
+                            if (pixels)
+                            {
+                                drawImageToScreen(pixels, width, height);
+                                stbi_image_free(pixels);
+                            }
+                        }
+                    }
+                }
+
                 free(json);
             }
             else
@@ -346,6 +387,7 @@ int main(int argc, char **argv)
     if (is_playing_str)
         free(is_playing_str);
 
+    cleanupNetwork();
     httpcExit();
     cfguExit();
     gfxExit();
