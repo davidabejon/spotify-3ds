@@ -120,12 +120,20 @@ int main(int argc, char **argv)
     int col_connect = center(connect_msg, SCREEN_WIDTH);
     printf("\x1b[1;%dH%s\n", col_connect + 1, connect_msg);
 
-    // Main loop
+    // Variables for now-playing info
+    static u32 lastTick = 0;
+    char *track = NULL;
+    char *artist = NULL;
+    char *is_playing_str = NULL;
+    bool need_refresh = true;
+
     while (aptMainLoop())
     {
         hidScanInput();
-
         u32 kDown = hidKeysDown();
+        u32 currentTick = osGetTime();
+
+        // Handle input every frame
         if (kDown & KEY_START)
             break;
 
@@ -141,6 +149,7 @@ int main(int argc, char **argv)
             snprintf(connect_msg, sizeof(connect_msg), "Connecting to %s...", server_ip);
             col_connect = center(connect_msg, SCREEN_WIDTH);
             printf("\x1b[1;%dH%s\n", col_connect + 1, connect_msg);
+            need_refresh = true; // force refresh after IP change
         }
 
         if (kDown & KEY_A)
@@ -150,33 +159,41 @@ int main(int argc, char **argv)
             else
                 build_url(url, sizeof(url), server_ip, "play");
             fetch(url);
+            need_refresh = true;
         }
         if (kDown & KEY_DRIGHT)
         {
             build_url(url, sizeof(url), server_ip, "next");
             fetch(url);
+            need_refresh = true;
         }
         if (kDown & KEY_DLEFT)
         {
             build_url(url, sizeof(url), server_ip, "previous");
             fetch(url);
+            need_refresh = true;
         }
 
-        // Fetch every 3 seconds
-        static u32 lastTick = 0;
-        u32 currentTick = osGetTime();
-
-        if (currentTick - lastTick >= 3000)
+        // Only fetch now-playing info every 5 seconds or if forced
+        if (need_refresh || (currentTick - lastTick >= 5000))
         {
             lastTick = currentTick;
+            need_refresh = false;
 
             build_url(url, sizeof(url), server_ip, "now-playing");
             char *json = fetch(url);
             if (json)
             {
-                char *track = get("name", json);
-                char *artist = get("artist", json);
-                char *is_playing_str = get("is_playing", json);
+                if (track)
+                    free(track);
+                if (artist)
+                    free(artist);
+                if (is_playing_str)
+                    free(is_playing_str);
+
+                track = get("name", json);
+                artist = get("artist", json);
+                is_playing_str = get("is_playing", json);
 
                 if (is_playing_str)
                     is_playing = strcmp(is_playing_str, "true") == 0;
@@ -210,10 +227,7 @@ int main(int argc, char **argv)
                 int col_artist = center(artist, SCREEN_WIDTH);
                 printf("\x1b[6;%dH%s", col_artist + 1, artist);
 
-                free(track);
-                free(artist);
                 free(json);
-                free(is_playing_str);
             }
             else
             {
@@ -227,6 +241,13 @@ int main(int argc, char **argv)
         gfxSwapBuffers();
         gspWaitForVBlank();
     }
+
+    if (track)
+        free(track);
+    if (artist)
+        free(artist);
+    if (is_playing_str)
+        free(is_playing_str);
 
     httpcExit();
     cfguExit();

@@ -139,15 +139,30 @@ def now_playing():
     }
     return JSONResponse(track_info)
 
+@app.get("/player-state")
+def player_state():
+    token_data, error = get_access_token()
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+    access_token = token_data["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    resp = requests.get("https://api.spotify.com/v1/me/player", headers=headers)
+
+    if resp.status_code != 200:
+        return JSONResponse({"error": resp.json()}, status_code=resp.status_code)
+
+    data = resp.json()
+    return JSONResponse(data)
+
 # ----------------------------
 # Playback control
 # ----------------------------
-def spotify_put(endpoint, access_token, device_id=None):
+def spotify_put(endpoint, access_token, device_id=None, params=None):
     url = f"https://api.spotify.com/v1/me/player/{endpoint}"
     if device_id:
         url += f"?device_id={device_id}"
     headers = {"Authorization": f"Bearer {access_token}"}
-    return requests.put(url, headers=headers)
+    return requests.put(url, headers=headers, params=params)
 
 def spotify_post(endpoint, access_token, device_id=None):
     url = f"https://api.spotify.com/v1/me/player/{endpoint}"
@@ -186,4 +201,20 @@ def previous_track(device_id: str = None):
     if error:
         return JSONResponse({"error": error}, status_code=400)
     resp = spotify_post("previous", token_data["access_token"], device_id)
+    return JSONResponse({"status": resp.status_code})
+
+@app.get("/volume-up")
+def volume_up(device_id: str = None, volume_percent: int = 10):
+    token_data, error = get_access_token()
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+    resp = spotify_put("volume", token_data["access_token"], device_id, params={"volume_percent": volume_percent})
+    return JSONResponse({"status": resp.status_code})
+
+@app.get("/volume-down")
+def volume_down(device_id: str = None, volume_percent: int = 10):
+    token_data, error = get_access_token()
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+    resp = spotify_put("volume", token_data["access_token"], device_id, params={"volume_percent": -volume_percent})
     return JSONResponse({"status": resp.status_code})
