@@ -1,3 +1,6 @@
+
+#include <3ds/thread.h>
+#include <3ds/synchronization.h>
 #include <stdio.h>
 #include <string.h>
 #include <3ds.h>
@@ -7,6 +10,24 @@
 
 #include "fetch.h"
 #include "parse.h"
+
+// Struct for async fetch result
+typedef struct
+{
+    char url[128];
+    char *json_result;
+    volatile bool done;
+    LightEvent event;
+} FetchJob;
+
+// Worker thread function
+void fetch_worker(void *arg)
+{
+    FetchJob *job = (FetchJob *)arg;
+    job->json_result = fetch(job->url);
+    job->done = true;
+    LightEvent_Signal(&job->event);
+}
 
 #define CONFIG_DIR "sdmc:/3ds/spotify-3ds"
 #define CONFIG_PATH "sdmc:/3ds/spotify-3ds/ip.cfg"
@@ -127,6 +148,11 @@ int main(int argc, char **argv)
     char *is_playing_str = NULL;
     bool need_refresh = true;
 
+    // Async fetch state
+    FetchJob fetchJob;
+    Thread fetchThread = NULL;
+    bool fetchInProgress = false;
+
     while (aptMainLoop())
     {
         hidScanInput();
@@ -174,14 +200,29 @@ int main(int argc, char **argv)
             need_refresh = true;
         }
 
-        // Only fetch now-playing info every 5 seconds or if forced
-        if (need_refresh || (currentTick - lastTick >= 5000))
+        // Start async fetch if needed and not already in progress
+        if ((need_refresh || (currentTick - lastTick >= 5000)) && !fetchInProgress)
         {
             lastTick = currentTick;
             need_refresh = false;
 
-            build_url(url, sizeof(url), server_ip, "now-playing");
-            char *json = fetch(url);
+            build_url(fetchJob.url, sizeof(fetchJob.url), server_ip, "now-playing");
+            fetchJob.json_result = NULL;
+            fetchJob.done = false;
+            LightEvent_Init(&fetchJob.event, RESET_ONESHOT);
+            fetchThread = threadCreate(fetch_worker, &fetchJob, 8 * 1024, 0x18, -2, false);
+            fetchInProgress = true;
+        }
+
+        // If fetch is done, process result
+        if (fetchInProgress && fetchJob.done)
+        {
+            threadJoin(fetchThread, U64_MAX);
+            threadFree(fetchThread);
+            fetchThread = NULL;
+            fetchInProgress = false;
+
+            char *json = fetchJob.json_result;
             if (json)
             {
                 if (track)
