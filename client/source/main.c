@@ -1,4 +1,3 @@
-// ...existing code...
 #include <3ds/thread.h>
 #include <3ds/synchronization.h>
 #include <stdio.h>
@@ -36,21 +35,10 @@ void fetch_worker(void *arg)
 #define CONFIG_DIR "sdmc:/3ds/spotify-3ds"
 #define CONFIG_PATH "sdmc:/3ds/spotify-3ds/ip.cfg"
 
-// For console centering, not needed for C2D
-
 // Ensures directory exists
 void ensureDirectory(const char *path)
 {
     mkdir(path, 0777); // Safe on 3DS, does nothing if exists
-}
-
-// Center helper
-int center(const char *text, int width)
-{
-    int len = strlen(text);
-    if (len >= width)
-        return 0;
-    return (width - len) / 2;
 }
 
 // Persistent IP load
@@ -100,12 +88,6 @@ char *askUser(const char *prompt)
     return inputbuf;
 }
 
-// Clear screen
-void clearScreen()
-{
-    printf("\x1b[2J");
-}
-
 // Helper to build URLs
 void build_url(char *buf, size_t buflen, const char *server_ip, const char *endpoint)
 {
@@ -120,15 +102,24 @@ int main(int argc, char **argv)
     C2D_Prepare();
     cfguInit();
     httpcInit(0);
-    Result ret = initNetwork();
+    initNetwork();
 
-    // Create screen target for bottom
+    // Create screen targets for BOTH top and bottom
+    C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
     C3D_RenderTarget *bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
     // Text buffers
     C2D_TextBuf staticBuf = C2D_TextBufNew(4096);
     C2D_TextBuf dynamicBuf = C2D_TextBufNew(4096);
     C2D_Text text_status, text_track, text_artist, text_device, text_volume;
+
+    // Image variables
+    u8 *imagePixels = NULL;
+    int imageWidth = 0;
+    int imageHeight = 0;
+    bool imageLoaded = false;
+    bool needImageReload = false;
+    char *currentImageURL = NULL;
 
     bool is_playing = false;
     char url[128];
@@ -142,21 +133,22 @@ int main(int argc, char **argv)
         saveIP(server_ip);
     }
 
-    // Variables for now-playing info
+    // Variables for now-playing info - with mutex for thread safety
     static u32 lastTick = 0;
-    char *track = NULL;
-    char *artist = NULL;
-    char *device_name = NULL;
-    char *volume_str = NULL;
+    char *track = strdup("Unknown");
+    char *artist = strdup("Unknown");
+    char *device_name = strdup("Unknown Device");
+    char *volume_str = strdup("N/A");
     int volume = 0;
-    char *is_playing_str = NULL;
+    char *is_playing_str = strdup("false");
     bool need_refresh = true;
-    char *imageURL = NULL;
-    u8 *imagePixels = NULL;
-    int imageWidth = 0, imageHeight = 0;
     FetchJob fetchJob;
     Thread fetchThread = NULL;
     bool fetchInProgress = false;
+
+    // Mutex for thread-safe updates
+    LightLock dataLock;
+    LightLock_Init(&dataLock);
 
     while (aptMainLoop())
     {
@@ -243,6 +235,17 @@ int main(int argc, char **argv)
             char *json = fetchJob.json_result;
             if (json)
             {
+                // Parse JSON first
+                char *new_track = get("name", json);
+                char *new_artist = get("artist", json);
+                char *new_is_playing_str = get("is_playing", json);
+                char *new_device_name = get("device", json);
+                char *new_volume_str = get("volume_percent", json);
+
+                // Lock before updating shared data
+                LightLock_Lock(&dataLock);
+
+                // Free old strings
                 if (track)
                     free(track);
                 if (artist)
@@ -253,46 +256,113 @@ int main(int argc, char **argv)
                     free(device_name);
                 if (volume_str)
                     free(volume_str);
-                track = get("name", json);
-                artist = get("artist", json);
-                is_playing_str = get("is_playing", json);
-                device_name = get("device", json);
-                volume_str = get("volume_percent", json);
-                imageURL = get("image_url", json);
-                if (is_playing_str)
-                    is_playing = strcmp(is_playing_str, "true") == 0;
-                if (!track)
-                    track = strdup("Unknown");
-                if (!artist)
-                    artist = strdup("Unknown");
-                if (!device_name)
-                    device_name = strdup("Unknown Device");
-                if (!volume_str)
-                    volume_str = strdup("N/A");
-                else
+
+                // Assign new values
+                track = new_track ? strdup(new_track) : strdup("Unknown");
+                artist = new_artist ? strdup(new_artist) : strdup("Unknown");
+                is_playing_str = new_is_playing_str ? strdup(new_is_playing_str) : strdup("false");
+                device_name = new_device_name ? strdup(new_device_name) : strdup("Unknown Device");
+                volume_str = new_volume_str ? strdup(new_volume_str) : strdup("N/A");
+
+                is_playing = strcmp(is_playing_str, "true") == 0;
+                if (volume_str && strcmp(volume_str, "N/A") != 0)
                     volume = atoi(volume_str);
+
+                // Free temporary strings from get()
+                if (new_track)
+                    free(new_track);
+                if (new_artist)
+                    free(new_artist);
+                if (new_is_playing_str)
+                    free(new_is_playing_str);
+                if (new_device_name)
+                    free(new_device_name);
+                if (new_volume_str)
+                    free(new_volume_str);
+
+                // Handle image URL
+                char *imageURL = get("image_url", json);
+                if (imageURL)
+                {
+                    // Check if image URL changed
+                    if (!currentImageURL || strcmp(imageURL, currentImageURL) != 0)
+                    {
+                        // Free old image
+                        if (imagePixels)
+                        {
+                            stbi_image_free(imagePixels);
+                            imagePixels = NULL;
+                            imageLoaded = false;
+                        }
+                        if (currentImageURL)
+                        {
+                            free(currentImageURL);
+                        }
+
+                        currentImageURL = strdup(imageURL);
+                        needImageReload = true;
+                    }
+                    free(imageURL);
+                }
+
+                LightLock_Unlock(&dataLock);
                 free(json);
             }
         }
 
+        // Load new image if needed
+        if (needImageReload && currentImageURL)
+        {
+            u32 imageSize = 0;
+            u8 *imageData = downloadImage(currentImageURL, &imageSize);
+
+            if (imageData && imageSize > 0)
+            {
+                int width, height, channels;
+                u8 *pixels = stbi_load_from_memory(imageData, imageSize, &width, &height, &channels, 4);
+                free(imageData);
+
+                if (pixels)
+                {
+                    if (imagePixels)
+                    {
+                        stbi_image_free(imagePixels);
+                    }
+
+                    imagePixels = pixels;
+                    imageWidth = width;
+                    imageHeight = height;
+                    imageLoaded = true;
+                }
+            }
+            needImageReload = false;
+        }
+
         // Render with citro2d
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+        // Render BOTTOM screen (text interface)
         C2D_TargetClear(bottom, C2D_Color32(0x20, 0x20, 0x20, 0xFF));
         C2D_SceneBegin(bottom);
 
-        // Prepare text
+        // Lock while reading data for rendering
+        LightLock_Lock(&dataLock);
+
+        // Prepare text with current data
         char status[64];
         snprintf(status, sizeof(status), "%s", is_playing ? "Now playing:" : "Playback paused:");
         char device_line[128];
-        snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name ? device_name : "");
+        snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
         char volume_line[64];
-        snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str ? volume_str : "");
+        snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str);
 
-        // Parse and optimize
+        LightLock_Unlock(&dataLock);
+
+        // Parse and optimize text
         C2D_TextBufClear(staticBuf);
         C2D_TextParse(&text_status, staticBuf, status);
-        C2D_TextParse(&text_track, staticBuf, track ? track : "");
-        C2D_TextParse(&text_artist, staticBuf, artist ? artist : "");
+        C2D_TextParse(&text_track, staticBuf, track);
+        C2D_TextParse(&text_artist, staticBuf, artist);
         C2D_TextParse(&text_device, staticBuf, device_line);
         C2D_TextParse(&text_volume, staticBuf, volume_line);
         C2D_TextOptimize(&text_status);
@@ -301,29 +371,40 @@ int main(int argc, char **argv)
         C2D_TextOptimize(&text_device);
         C2D_TextOptimize(&text_volume);
 
-        // Draw text
-        float y = 30;
-        C2D_DrawText(&text_status, 0, 16, y, 0.5f, 0.7f, 0.7f);
-        y += 28;
-        C2D_DrawText(&text_track, 0, 16, y, 0.5f, 0.9f, 0.9f);
-        y += 28;
-        C2D_DrawText(&text_artist, 0, 16, y, 0.5f, 0.7f, 0.7f);
-        y += 28;
-        C2D_DrawText(&text_device, 0, 16, y, 0.5f, 0.6f, 0.6f);
-        y += 28;
-        C2D_DrawText(&text_volume, 0, 16, y, 0.5f, 0.6f, 0.6f);
+        // Draw text on bottom screen
+        float y = 30.0f;
+        C2D_DrawText(&text_status, C2D_AtBaseline | C2D_WithColor, 16.0f, y, 0.5f, 0.7f, 0.7f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        y += 28.0f;
+        C2D_DrawText(&text_track, C2D_AtBaseline | C2D_WithColor, 16.0f, y, 0.5f, 0.9f, 0.9f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        y += 28.0f;
+        C2D_DrawText(&text_artist, C2D_AtBaseline | C2D_WithColor, 16.0f, y, 0.5f, 0.7f, 0.7f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        y += 28.0f;
+        C2D_DrawText(&text_device, C2D_AtBaseline | C2D_WithColor, 16.0f, y, 0.5f, 0.6f, 0.6f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        y += 28.0f;
+        C2D_DrawText(&text_volume, C2D_AtBaseline | C2D_WithColor, 16.0f, y, 0.5f, 0.6f, 0.6f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
 
-        // Draw image if we have one (on top screen, before frame end)
-        if (imagePixels)
+        C3D_FrameEnd(0);
+
+        // Draw image on TOP screen using your existing function
+        // We do this AFTER the Citro2D frame because drawImageToScreen uses direct framebuffer access
+        if (imageLoaded && imagePixels)
         {
             drawImageToScreen(imagePixels, imageWidth, imageHeight);
         }
+        else
+        {
+            // Just clear the top screen with background color if no image
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            C2D_TargetClear(top, C2D_Color32(30, 215, 96, 0xFF));
+            C2D_SceneBegin(top);
+            C3D_FrameEnd(0);
+        }
 
-        C3D_FrameEnd(0);
         gspWaitForVBlank();
     }
 
     // Cleanup
+    LightLock_Lock(&dataLock);
     if (track)
         free(track);
     if (artist)
@@ -334,8 +415,13 @@ int main(int argc, char **argv)
         free(device_name);
     if (volume_str)
         free(volume_str);
+    LightLock_Unlock(&dataLock);
+
+    if (currentImageURL)
+        free(currentImageURL);
     if (imagePixels)
         stbi_image_free(imagePixels);
+
     C2D_TextBufDelete(staticBuf);
     C2D_TextBufDelete(dynamicBuf);
     C2D_Fini();
