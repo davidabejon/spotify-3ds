@@ -31,7 +31,7 @@ include $(DEVKITARM)/3ds_rules
 #     - icon.png
 #     - <libctru folder>/default_icon.png
 #---------------------------------------------------------------------------------
-TARGET		:=	spotify-3ds
+TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
 SOURCES		:=	source
 DATA		:=	data
@@ -40,10 +40,6 @@ GRAPHICS	:=	gfx
 GFXBUILD	:=	$(BUILD)
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(ROMFS)/gfx
-APP_TITLE := Spotify 3DS
-APP_DESCRIPTION := A Spotify 'kind of' client for Nintendo 3DS
-APP_AUTHOR := David Abejon
-ICON := icon.png
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -61,7 +57,7 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS := -lcitro2d -lcitro3d -lctru -lm
+LIBS	:= -lcitro2d -lcitro3d -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -202,8 +198,7 @@ $(OUTPUT).3dsx	:	$(OUTPUT).elf $(_3DSXDEPS)
 
 $(OFILES_SOURCES) : $(HFILES)
 
-$(OUTPUT).elf	: $(OFILES)
-	$(LD) $(LDFLAGS) -o $@ $(OFILES) $(LIBPATHS) $(LIBS)
+$(OUTPUT).elf	:	$(OFILES)
 
 #---------------------------------------------------------------------------------
 # you need a rule like this for each extension you use as binary data

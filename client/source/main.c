@@ -1,3 +1,4 @@
+// ...existing code...
 #include <3ds/thread.h>
 #include <3ds/synchronization.h>
 #include <stdio.h>
@@ -6,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <citro2d.h>
 
 #include "fetch.h"
 #include "parse.h"
@@ -34,7 +36,7 @@ void fetch_worker(void *arg)
 #define CONFIG_DIR "sdmc:/3ds/spotify-3ds"
 #define CONFIG_PATH "sdmc:/3ds/spotify-3ds/ip.cfg"
 
-const int SCREEN_WIDTH = 40;
+// For console centering, not needed for C2D
 
 // Ensures directory exists
 void ensureDirectory(const char *path)
@@ -113,21 +115,25 @@ void build_url(char *buf, size_t buflen, const char *server_ip, const char *endp
 int main(int argc, char **argv)
 {
     gfxInitDefault();
+    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    C2D_Prepare();
     cfguInit();
     httpcInit(0);
     Result ret = initNetwork();
-    PrintConsole bottomConsole;
-    consoleInit(GFX_BOTTOM, &bottomConsole);
-    consoleSelect(&bottomConsole);
+
+    // Create screen target for bottom
+    C3D_RenderTarget *bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+
+    // Text buffers
+    C2D_TextBuf staticBuf = C2D_TextBufNew(4096);
+    C2D_TextBuf dynamicBuf = C2D_TextBufNew(4096);
+    C2D_Text text_status, text_track, text_artist, text_device, text_volume;
+
     bool is_playing = false;
     char url[128];
-
-    // Ensure directory exists
     ensureDirectory(CONFIG_DIR);
-
     char server_ip[60];
-
-    // Load or ask for IP
     if (!loadIP(server_ip, sizeof(server_ip)))
     {
         char *input = askUser("Enter server IP address:");
@@ -135,12 +141,6 @@ int main(int argc, char **argv)
         server_ip[sizeof(server_ip) - 1] = '\0';
         saveIP(server_ip);
     }
-
-    // Initial connection message
-    char connect_msg[80];
-    snprintf(connect_msg, sizeof(connect_msg), "Connecting to %s...", server_ip);
-    int col_connect = center(connect_msg, SCREEN_WIDTH);
-    printf("\x1b[1;%dH%s\n", col_connect + 1, connect_msg);
 
     // Variables for now-playing info
     static u32 lastTick = 0;
@@ -151,13 +151,9 @@ int main(int argc, char **argv)
     int volume = 0;
     char *is_playing_str = NULL;
     bool need_refresh = true;
-
-    // Image data variables
     char *imageURL = NULL;
     u8 *imagePixels = NULL;
     int imageWidth = 0, imageHeight = 0;
-
-    // Async fetch state
     FetchJob fetchJob;
     Thread fetchThread = NULL;
     bool fetchInProgress = false;
@@ -167,26 +163,17 @@ int main(int argc, char **argv)
         hidScanInput();
         u32 kDown = hidKeysDown();
         u32 currentTick = osGetTime();
-
-        // Handle input every frame
         if (kDown & KEY_START)
             break;
 
-        // Re-enter IP on pressing Y
         if (kDown & KEY_Y)
         {
-            clearScreen();
             char *input = askUser("Enter new server IP address:");
             strncpy(server_ip, input, sizeof(server_ip) - 1);
             server_ip[sizeof(server_ip) - 1] = '\0';
             saveIP(server_ip);
-
-            snprintf(connect_msg, sizeof(connect_msg), "Connecting to %s...", server_ip);
-            col_connect = center(connect_msg, SCREEN_WIDTH);
-            printf("\x1b[1;%dH%s\n", col_connect + 1, connect_msg);
-            need_refresh = true; // force refresh after IP change
+            need_refresh = true;
         }
-
         if (kDown & KEY_A)
         {
             if (is_playing)
@@ -239,7 +226,6 @@ int main(int argc, char **argv)
         {
             lastTick = currentTick;
             need_refresh = false;
-
             build_url(fetchJob.url, sizeof(fetchJob.url), server_ip, "now-playing");
             fetchJob.json_result = NULL;
             fetchJob.done = false;
@@ -248,14 +234,12 @@ int main(int argc, char **argv)
             fetchInProgress = true;
         }
 
-        // If fetch is done, process result
         if (fetchInProgress && fetchJob.done)
         {
             threadJoin(fetchThread, U64_MAX);
             threadFree(fetchThread);
             fetchThread = NULL;
             fetchInProgress = false;
-
             char *json = fetchJob.json_result;
             if (json)
             {
@@ -269,17 +253,14 @@ int main(int argc, char **argv)
                     free(device_name);
                 if (volume_str)
                     free(volume_str);
-
                 track = get("name", json);
                 artist = get("artist", json);
                 is_playing_str = get("is_playing", json);
                 device_name = get("device", json);
                 volume_str = get("volume_percent", json);
                 imageURL = get("image_url", json);
-
                 if (is_playing_str)
                     is_playing = strcmp(is_playing_str, "true") == 0;
-
                 if (!track)
                     track = strdup("Unknown");
                 if (!artist)
@@ -290,93 +271,55 @@ int main(int argc, char **argv)
                     volume_str = strdup("N/A");
                 else
                     volume = atoi(volume_str);
-
-                clearScreen();
-
-                // Status with spacing
-                char line1[64];
-                snprintf(line1, sizeof(line1),
-                         is_playing ? "Now playing:" : "Playback paused:");
-                int col1 = center(line1, SCREEN_WIDTH);
-                printf("\x1b[1;1H\n"); // Space
-
-                // Status
-                printf("\x1b[2;%dH%s\n", col1 + 1, line1);
-
-                printf("\x1b[3;1H\n"); // Space
-
-                // Track
-                int col_track = center(track, SCREEN_WIDTH);
-                printf("\x1b[4;%dH%s\n", col_track + 1, track);
-
-                printf("\x1b[5;1H\n"); // Space
-
-                // Artist
-                int col_artist = center(artist, SCREEN_WIDTH);
-                printf("\x1b[6;%dH%s", col_artist + 1, artist);
-
-                // Playing in device
-                char device_line[128];
-                snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
-                int col_device = center(device_line, SCREEN_WIDTH);
-                printf("\x1b[8;%dH%s\n", col_device + 1, device_line);
-
-                printf("\x1b[9;1H\n"); // Space
-
-                // Volume
-                char volume_line[64];
-                snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str);
-                int col_volume = center(volume_line, SCREEN_WIDTH);
-                printf("\x1b[10;%dH%s\n", col_volume + 1, volume_line);
-
-                // Handle image download/display
-                if (ret == 0 && imageURL && strlen(imageURL) > 0)
-                {
-                    // Free old image data
-                    if (imagePixels)
-                    {
-                        stbi_image_free(imagePixels);
-                        imagePixels = NULL;
-                        imageWidth = 0;
-                        imageHeight = 0;
-                    }
-
-                    // Download and decode image
-                    u32 imageSize = 0;
-                    u8 *imageData = downloadImage(imageURL, &imageSize);
-                    if (imageData && imageSize > 0)
-                    {
-                        imagePixels = stbi_load_from_memory(imageData, imageSize,
-                                                            &imageWidth, &imageHeight, NULL, STBI_rgb_alpha);
-                        free(imageData);
-
-                        if (!imagePixels)
-                        {
-                            printf("Failed to decode image\n");
-                        }
-                    }
-                    else if (imageData)
-                    {
-                        free(imageData);
-                    }
-                }
-
                 free(json);
-            }
-            else
-            {
-                const char *err_msg = "Error fetching data from server.";
-                int col_err = center(err_msg, SCREEN_WIDTH);
-                printf("\x1b[1;%dH%s\n", col_err + 1, err_msg);
             }
         }
 
-        // Draw image if we have one
+        // Render with citro2d
+        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        C2D_TargetClear(bottom, C2D_Color32(0x20, 0x20, 0x20, 0xFF));
+        C2D_SceneBegin(bottom);
+
+        // Prepare text
+        char status[64];
+        snprintf(status, sizeof(status), "%s", is_playing ? "Now playing:" : "Playback paused:");
+        char device_line[128];
+        snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name ? device_name : "");
+        char volume_line[64];
+        snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str ? volume_str : "");
+
+        // Parse and optimize
+        C2D_TextBufClear(staticBuf);
+        C2D_TextParse(&text_status, staticBuf, status);
+        C2D_TextParse(&text_track, staticBuf, track ? track : "");
+        C2D_TextParse(&text_artist, staticBuf, artist ? artist : "");
+        C2D_TextParse(&text_device, staticBuf, device_line);
+        C2D_TextParse(&text_volume, staticBuf, volume_line);
+        C2D_TextOptimize(&text_status);
+        C2D_TextOptimize(&text_track);
+        C2D_TextOptimize(&text_artist);
+        C2D_TextOptimize(&text_device);
+        C2D_TextOptimize(&text_volume);
+
+        // Draw text
+        float y = 30;
+        C2D_DrawText(&text_status, 0, 16, y, 0.5f, 0.7f, 0.7f);
+        y += 28;
+        C2D_DrawText(&text_track, 0, 16, y, 0.5f, 0.9f, 0.9f);
+        y += 28;
+        C2D_DrawText(&text_artist, 0, 16, y, 0.5f, 0.7f, 0.7f);
+        y += 28;
+        C2D_DrawText(&text_device, 0, 16, y, 0.5f, 0.6f, 0.6f);
+        y += 28;
+        C2D_DrawText(&text_volume, 0, 16, y, 0.5f, 0.6f, 0.6f);
+
+        // Draw image if we have one (on top screen, before frame end)
         if (imagePixels)
         {
             drawImageToScreen(imagePixels, imageWidth, imageHeight);
         }
 
+        C3D_FrameEnd(0);
         gspWaitForVBlank();
     }
 
@@ -393,7 +336,10 @@ int main(int argc, char **argv)
         free(volume_str);
     if (imagePixels)
         stbi_image_free(imagePixels);
-
+    C2D_TextBufDelete(staticBuf);
+    C2D_TextBufDelete(dynamicBuf);
+    C2D_Fini();
+    C3D_Fini();
     cleanupNetwork();
     httpcExit();
     cfguExit();
