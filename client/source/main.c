@@ -35,6 +35,7 @@ void fetch_worker(void *arg)
 #define CONFIG_PATH "sdmc:/3ds/spotify-3ds/ip.cfg"
 
 const int SCREEN_WIDTH = 40;
+static const int H_MARGIN = 3; // left/right horizontal margin in characters
 
 // Ensures directory exists
 void ensureDirectory(const char *path)
@@ -49,6 +50,57 @@ int center(const char *text, int width)
     if (len >= width)
         return 0;
     return (width - len) / 2;
+}
+
+// forward declaration for a function defined later
+void printWithShadowCentered(int y, const char *text);
+
+// Marquee state for long track titles
+static int track_scroll_index = 0;
+static u32 track_last_scroll_tick = 0;
+static const int track_scroll_delay_ms = 200; // time between scroll steps
+
+// Print a line with shadow; if text fits, center it, otherwise show a marquee within SCREEN_WIDTH
+void printMarqueeLine(int y, const char *text)
+{
+    if (!text) return;
+    int len = strlen(text);
+    int fieldWidth = SCREEN_WIDTH - 2 * H_MARGIN;
+
+    if (len <= fieldWidth)
+    {
+        printWithShadowCentered(y, text);
+        return;
+    }
+
+    // Build visible window of width fieldWidth using scroll index and a small spacer
+    int pad = 4;
+    int loopLen = len + pad;
+    char buf[64];
+    if (fieldWidth >= (int)sizeof(buf)) fieldWidth = (int)sizeof(buf) - 1;
+    for (int i = 0; i < fieldWidth; i++)
+    {
+        int idx = (track_scroll_index + i) % loopLen;
+        if (idx < len)
+            buf[i] = text[idx];
+        else
+            buf[i] = ' ';
+    }
+    buf[fieldWidth] = '\0';
+
+    // Print shadow (one row down, one column right) with left margin
+    int mainCol = H_MARGIN + 1;
+    int shadowCol = mainCol + 1;
+    int shadowLen = (fieldWidth > 0) ? (fieldWidth - 1) : 0;
+    if (shadowLen > 0) {
+        char shadowBuf[64];
+        if (shadowLen >= (int)sizeof(shadowBuf)) shadowLen = (int)sizeof(shadowBuf) - 1;
+        memcpy(shadowBuf, buf, shadowLen);
+        shadowBuf[shadowLen] = '\0';
+        printf("\x1b[%d;%dH\x1b[38;2;0;0;0m%s", y + 1, shadowCol, shadowBuf);
+    }
+    // Print main text
+    printf("\x1b[%d;%dH\x1b[38;2;30;215;96m%s", y, mainCol, buf);
 }
 
 // Persistent IP load
@@ -104,25 +156,137 @@ static PrintConsole bottomConsole;
 // Clear screen
 void clearScreen()
 {
-    // Set background to light gray (252), foreground to green (Spotify green: 46)
+    // Set background to dark (near-black) and clear the console
     printf("\x1b[48;2;30;33;36m");  // Darker background (almost black)
-    printf("\x1b[38;2;30;215;96m"); // Text color
     printf("\x1b[2J");
+
+    // Draw visible frame margins: vertical lines at left/right margins and horizontal lines at top/bottom
+    int leftCol = H_MARGIN;
+    int rightCol = SCREEN_WIDTH - H_MARGIN + 1;
+    // Keep the printable frame roughly in the previous area
+    int topRow = 4;
+    int bottomRow = 26;
+
+    // Frame color (light gray)
+    printf("\x1b[38;2;200;200;200m");
+
+    int innerWidth = rightCol - leftCol - 1;
+
+    // Decorative title to show in the top border
+    const char *title = " Spotify-3DS ";
+    int titleLen = (int)strlen(title);
+    int titleStart = (innerWidth - titleLen) / 2;
+    if (titleStart < 0) titleStart = 0;
+
+    // Top border with centered title
+    for (int c = leftCol; c <= rightCol; c++) {
+        int pos = c - leftCol - 1; // 0-based inside
+        if (c == leftCol) {
+            printf("\x1b[%d;%dH+", topRow, c);
+        } else if (c == rightCol) {
+            printf("\x1b[%d;%dH+", topRow, c);
+        } else {
+            if (pos >= titleStart && pos < titleStart + titleLen) {
+                char ch = title[pos - titleStart];
+                printf("\x1b[%d;%dH%c", topRow, c, ch);
+            } else {
+                printf("\x1b[%d;%dH-", topRow, c);
+            }
+        }
+    }
+
+    // Bottom border with a small pattern
+    const char *bottomStamp = "~ Enjoy the music ~";
+    int stampLen = (int)strlen(bottomStamp);
+    int stampStart = (innerWidth - stampLen) / 2;
+    if (stampStart < 0) stampStart = 0;
+    for (int c = leftCol; c <= rightCol; c++) {
+        int pos = c - leftCol - 1;
+        if (c == leftCol) {
+            printf("\x1b[%d;%dH+", bottomRow, c);
+        } else if (c == rightCol) {
+            printf("\x1b[%d;%dH+", bottomRow, c);
+        } else {
+            if (pos >= stampStart && pos < stampStart + stampLen) {
+                char ch = bottomStamp[pos - stampStart];
+                printf("\x1b[%d;%dH%c", bottomRow, c, ch);
+            } else {
+                printf("\x1b[%d;%dH=", bottomRow, c);
+            }
+        }
+    }
+
+    // Vertical sides and small corner flourishes
+    for (int r = topRow + 1; r < bottomRow; r++) {
+        // left side
+        printf("\x1b[%d;%dH|", r, leftCol);
+        // right side
+        printf("\x1b[%d;%dH|", r, rightCol);
+    }
+
+    // Small corner art inside the frame
+    printf("\x1b[%d;%dH%c", topRow + 1, leftCol + 2, '/');
+    printf("\x1b[%d;%dH%c", topRow + 2, leftCol + 1, '/');
+    printf("\x1b[%d;%dH%c", topRow + 1, rightCol - 2, '\\');
+    printf("\x1b[%d;%dH%c", topRow + 2, rightCol - 1, '\\');
+    printf("\x1b[%d;%dH%c", bottomRow - 1, leftCol + 2, '\\');
+    printf("\x1b[%d;%dH%c", bottomRow - 2, leftCol + 1, '\\');
+    printf("\x1b[%d;%dH%c", bottomRow - 1, rightCol - 2, '/');
+    printf("\x1b[%d;%dH%c", bottomRow - 2, rightCol - 1, '/');
+
+    // Soft shadow along bottom and right borders (one row/col offset)
+    printf("\x1b[38;2;100;100;100m");
+    int shadowRow = bottomRow + 1;
+    for (int c = leftCol + 1; c <= rightCol + 1; c++) {
+        if (c == leftCol + 1) {
+            // leftmost point of bottom shadow: backslash
+            printf("\x1b[%d;%dH\\", shadowRow, c);
+        } else {
+            printf("\x1b[%d;%dH.", shadowRow, c);
+        }
+    }
+    int shadowCol = rightCol + 1;
+    for (int r = topRow + 1; r <= bottomRow + 1; r++) {
+        if (r == topRow + 1) {
+            // uppermost point of right shadow: backslash
+            printf("\x1b[%d;%dH\\", r, shadowCol);
+        } else {
+            printf("\x1b[%d;%dH.", r, shadowCol);
+        }
+    }
+
+
+    // Restore main text color (Spotify green)
+    printf("\x1b[38;2;30;215;96m");
 }
 
 void printWithShadowCentered(int y, const char *text)
 {
     int len = strlen(text);
-    int x = (SCREEN_WIDTH - len) / 2;
+    int effectiveWidth = SCREEN_WIDTH - 2 * H_MARGIN;
+    int x = (effectiveWidth - len) / 2;
+    if (x < 0)
+        x = 0;
 
-    if (x < 1)
-        x = 1;
+    int col = H_MARGIN + x + 1; // 1-based column
 
-    // Black shadow, offset by 1
-    printf("\x1b[%d;%dH\x1b[38;2;0;0;0m%s", y + 1, x + 1, text);
+    // Black shadow: if the text fits within the effective width, draw full-length shadow;
+    // otherwise draw the shadow one character shorter to avoid trailing overflow.
+    int shadowLen = len;
+    if (len > effectiveWidth) {
+        shadowLen = (len > 0) ? (len - 1) : 0;
+    }
+    if (shadowLen > effectiveWidth) shadowLen = effectiveWidth;
+    if (shadowLen > 0) {
+        char shadowBuf[256];
+        if (shadowLen >= (int)sizeof(shadowBuf)) shadowLen = (int)sizeof(shadowBuf) - 1;
+        memcpy(shadowBuf, text, shadowLen);
+        shadowBuf[shadowLen] = '\0';
+        printf("\x1b[%d;%dH\x1b[38;2;0;0;0m%s", y + 1, col + 1, shadowBuf);
+    }
 
     // Main text
-    printf("\x1b[%d;%dH\x1b[38;2;30;215;96m%s", y, x, text);
+    printf("\x1b[%d;%dH\x1b[38;2;30;215;96m%s", y, col, text);
 }
 
 // Helper to build URLs
@@ -346,21 +510,21 @@ int main(int argc, char **argv)
                     snprintf(line1, sizeof(line1),
                              is_playing ? "Now playing:" : "Playback paused:");
 
-                    // First line on row 11
-                    printWithShadowCentered(9, line1);
+                    // Status - centered with shadow
+                    printWithShadowCentered(8, line1);
 
-                    // Track - centered with shadow (2 rows below)
-                    printWithShadowCentered(12, track);
+                    // Track - use marquee-aware printing
+                    printMarqueeLine(11, track);
 
-                    // Artist - centered with shadow (2 rows below)
-                    printWithShadowCentered(15, artist);
+                    // Artist - centered with shadow
+                    printWithShadowCentered(14, artist);
 
-                    // Playing in device (2 rows below)
+                    // Playing in device
                     char device_line[128];
                     snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
                     printWithShadowCentered(18, device_line);
 
-                    // Volume (2 rows below)
+                    // Volume
                     char volume_line[64];
                     snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str);
                     printWithShadowCentered(21, volume_line);
@@ -411,6 +575,28 @@ int main(int argc, char **argv)
         if (imagePixels)
         {
             drawImageToScreen(imagePixels, imageWidth, imageHeight);
+        }
+
+        // Update marquee scroll state for long track titles
+        if (track)
+        {
+            int tlen = strlen(track);
+            if (tlen > SCREEN_WIDTH)
+            {
+                if (currentTick - track_last_scroll_tick >= track_scroll_delay_ms)
+                {
+                    track_scroll_index = (track_scroll_index + 1) % (tlen + 4);
+                    track_last_scroll_tick = currentTick;
+                }
+            }
+            else
+            {
+                // reset when short
+                track_scroll_index = 0;
+            }
+
+            // Always draw the track line (centered or marquee) each frame so animation updates
+            printMarqueeLine(11, track);
         }
 
         gspWaitForVBlank();
