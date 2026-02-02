@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
+#include <math.h>
 
 #define SOC_ALIGN 0x1000
 #define SOC_BUFFERSIZE 0x100000
@@ -222,6 +223,78 @@ void drawImageToScreen(u8 *pixels, int width, int height)
     
     // Outer corner radius (larger for the border)
     int outerCornerRadius = cornerRadius + borderWidth;
+
+    // Draw a soft drop shadow outside the outer rounded border (blended)
+    const int shadowOffsetX = 8;
+    const int shadowOffsetY = 8;
+    const int shadowBlur = 12; // how far the shadow spreads
+    const int maxShadowAlpha = 160; // max alpha (0-255)
+
+    // Shadow is computed relative to the outer rounded rectangle shifted by the offset
+    int shiftedOuterStartX = outerStartX + shadowOffsetX;
+    int shiftedOuterEndX   = outerEndX   + shadowOffsetX;
+    int shiftedOuterStartY = outerStartY + shadowOffsetY;
+    int shiftedOuterEndY   = outerEndY   + shadowOffsetY;
+
+    int shadowMinX = shiftedOuterStartX - shadowBlur;
+    int shadowMaxX = shiftedOuterEndX + shadowBlur - 1;
+    int shadowMinY = shiftedOuterStartY - shadowBlur;
+    int shadowMaxY = shiftedOuterEndY + shadowBlur - 1;
+
+    for (int y = shadowMinY; y <= shadowMaxY; y++) {
+        for (int x = shadowMinX; x <= shadowMaxX; x++) {
+            if (x < 0 || x >= 400 || y < 0 || y >= 240) continue;
+
+            // Compute distance from (x,y) to the shifted outer rounded rectangle.
+            // For rounded rect, distance is computed by clamping to the central rectangle
+            // defined by removing the corner radius; outside that area distance to corner circle applies.
+            int innerStartX = shiftedOuterStartX + outerCornerRadius;
+            int innerEndX   = shiftedOuterEndX   - outerCornerRadius - 1;
+            int innerStartY = shiftedOuterStartY + outerCornerRadius;
+            int innerEndY   = shiftedOuterEndY   - outerCornerRadius - 1;
+
+            int dx = 0;
+            if (x < innerStartX) dx = innerStartX - x;
+            else if (x > innerEndX) dx = x - innerEndX;
+
+            int dy = 0;
+            if (y < innerStartY) dy = innerStartY - y;
+            else if (y > innerEndY) dy = y - innerEndY;
+
+            float dist = sqrtf((float)(dx * dx + dy * dy));
+
+            // If the point lies inside the shifted rounded rect (dist == 0), skip — shadow should not draw over the object
+            if (dist <= 0.0f) continue;
+
+            // If distance is beyond blur radius, skip
+            if (dist >= shadowBlur) continue;
+
+            // Alpha falls off linearly with distance
+            int alpha = (int)((1.0f - (dist / (float)shadowBlur)) * maxShadowAlpha);
+            if (alpha <= 0) continue;
+
+            // Map to framebuffer (rotated coordinates)
+            int fbX = 239 - y;
+            int fbY = x;
+            if (fbX < 0 || fbX >= 240 || fbY < 0 || fbY >= 400) continue;
+
+            int fbIdx = (fbX + fbY * 240) * 3;
+            int maxFbIdx = fbWidth * fbHeight * 3 - 3;
+            if (fbIdx < 0 || fbIdx > maxFbIdx) continue;
+
+            // Shadow color (very dark gray)
+            const int sB = 18, sG = 18, sR = 18;
+
+            // Blend shadow over existing framebuffer pixel: out = alpha*shadow + (255-alpha)*dst / 255
+            u8 dstB = fb[fbIdx + 0];
+            u8 dstG = fb[fbIdx + 1];
+            u8 dstR = fb[fbIdx + 2];
+
+            fb[fbIdx + 0] = (u8)((alpha * sB + (255 - alpha) * dstB) / 255);
+            fb[fbIdx + 1] = (u8)((alpha * sG + (255 - alpha) * dstG) / 255);
+            fb[fbIdx + 2] = (u8)((alpha * sR + (255 - alpha) * dstR) / 255);
+        }
+    }
 
     // SIMPLIFIED: Draw the entire white border area first (including corners)
     // This will create a white rectangle with rounded corners
