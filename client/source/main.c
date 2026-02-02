@@ -68,7 +68,7 @@ void printMarqueeLine(int y, const char *text)
     int len = strlen(text);
     int fieldWidth = SCREEN_WIDTH - 2 * H_MARGIN;
 
-    if (len <= fieldWidth)
+    if (len < fieldWidth)
     {
         printWithShadowCentered(y, text);
         return;
@@ -666,7 +666,8 @@ int main(int argc, char **argv)
         if (track)
         {
             int tlen = strlen(track);
-            if (tlen > SCREEN_WIDTH)
+            int fieldWidth = SCREEN_WIDTH - 2 * H_MARGIN;
+            if (tlen > fieldWidth)
             {
                 if (currentTick - track_last_scroll_tick >= track_scroll_delay_ms)
                 {
