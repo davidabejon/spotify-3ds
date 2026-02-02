@@ -1,0 +1,20 @@
+BasicInfo:
+  Title: "Spotify 3DS"
+  ProductCode: "CTR-N-SPOTFY3DS"
+  CompanyCode: "00"
+  Logo: Nintendo # or Licensed or NoLogo
+
+TitleInfo:
+  Category: Application
+
+Option:
+  MediaType: Card1
+  EnableCompress: True
+
+AccessControlInfo:
+  ProgramId: 0x000400000FF00000
+  MemoryType: 0
+  SystemMode: 128MB
+  IdealProcessor: 0
+  MaxCPU: 0
+  RunnableOnSleep: False
