@@ -63,7 +63,8 @@ static const int track_scroll_delay_ms = 200; // time between scroll steps
 // Print a line with shadow; if text fits, center it, otherwise show a marquee within SCREEN_WIDTH
 void printMarqueeLine(int y, const char *text)
 {
-    if (!text) return;
+    if (!text)
+        return;
     int len = strlen(text);
     int fieldWidth = SCREEN_WIDTH - 2 * H_MARGIN;
 
@@ -77,7 +78,8 @@ void printMarqueeLine(int y, const char *text)
     int pad = 4;
     int loopLen = len + pad;
     char buf[64];
-    if (fieldWidth >= (int)sizeof(buf)) fieldWidth = (int)sizeof(buf) - 1;
+    if (fieldWidth >= (int)sizeof(buf))
+        fieldWidth = (int)sizeof(buf) - 1;
     for (int i = 0; i < fieldWidth; i++)
     {
         int idx = (track_scroll_index + i) % loopLen;
@@ -92,9 +94,11 @@ void printMarqueeLine(int y, const char *text)
     int mainCol = H_MARGIN + 1;
     int shadowCol = mainCol + 1;
     int shadowLen = (fieldWidth > 0) ? (fieldWidth - 1) : 0;
-    if (shadowLen > 0) {
+    if (shadowLen > 0)
+    {
         char shadowBuf[64];
-        if (shadowLen >= (int)sizeof(shadowBuf)) shadowLen = (int)sizeof(shadowBuf) - 1;
+        if (shadowLen >= (int)sizeof(shadowBuf))
+            shadowLen = (int)sizeof(shadowBuf) - 1;
         memcpy(shadowBuf, buf, shadowLen);
         shadowBuf[shadowLen] = '\0';
         printf("\x1b[%d;%dH\x1b[38;2;0;0;0m%s", y + 1, shadowCol, shadowBuf);
@@ -157,7 +161,7 @@ static PrintConsole bottomConsole;
 void clearScreen()
 {
     // Set background to dark (near-black) and clear the console
-    printf("\x1b[48;2;30;33;36m");  // Darker background (almost black)
+    printf("\x1b[48;2;30;33;36m"); // Darker background (almost black)
     printf("\x1b[2J");
 
     // Draw visible frame margins: vertical lines at left/right margins and horizontal lines at top/bottom
@@ -176,20 +180,30 @@ void clearScreen()
     const char *title = " Spotify-3DS ";
     int titleLen = (int)strlen(title);
     int titleStart = (innerWidth - titleLen) / 2;
-    if (titleStart < 0) titleStart = 0;
+    if (titleStart < 0)
+        titleStart = 0;
 
     // Top border with centered title
-    for (int c = leftCol; c <= rightCol; c++) {
+    for (int c = leftCol; c <= rightCol; c++)
+    {
         int pos = c - leftCol - 1; // 0-based inside
-        if (c == leftCol) {
+        if (c == leftCol)
+        {
             printf("\x1b[%d;%dH+", topRow, c);
-        } else if (c == rightCol) {
+        }
+        else if (c == rightCol)
+        {
             printf("\x1b[%d;%dH+", topRow, c);
-        } else {
-            if (pos >= titleStart && pos < titleStart + titleLen) {
+        }
+        else
+        {
+            if (pos >= titleStart && pos < titleStart + titleLen)
+            {
                 char ch = title[pos - titleStart];
                 printf("\x1b[%d;%dH%c", topRow, c, ch);
-            } else {
+            }
+            else
+            {
                 printf("\x1b[%d;%dH-", topRow, c);
             }
         }
@@ -199,25 +213,36 @@ void clearScreen()
     const char *bottomStamp = "~ Enjoy the music ~";
     int stampLen = (int)strlen(bottomStamp);
     int stampStart = (innerWidth - stampLen) / 2;
-    if (stampStart < 0) stampStart = 0;
-    for (int c = leftCol; c <= rightCol; c++) {
+    if (stampStart < 0)
+        stampStart = 0;
+    for (int c = leftCol; c <= rightCol; c++)
+    {
         int pos = c - leftCol - 1;
-        if (c == leftCol) {
+        if (c == leftCol)
+        {
             printf("\x1b[%d;%dH+", bottomRow, c);
-        } else if (c == rightCol) {
+        }
+        else if (c == rightCol)
+        {
             printf("\x1b[%d;%dH+", bottomRow, c);
-        } else {
-            if (pos >= stampStart && pos < stampStart + stampLen) {
+        }
+        else
+        {
+            if (pos >= stampStart && pos < stampStart + stampLen)
+            {
                 char ch = bottomStamp[pos - stampStart];
                 printf("\x1b[%d;%dH%c", bottomRow, c, ch);
-            } else {
+            }
+            else
+            {
                 printf("\x1b[%d;%dH=", bottomRow, c);
             }
         }
     }
 
     // Vertical sides and small corner flourishes
-    for (int r = topRow + 1; r < bottomRow; r++) {
+    for (int r = topRow + 1; r < bottomRow; r++)
+    {
         // left side
         printf("\x1b[%d;%dH|", r, leftCol);
         // right side
@@ -237,24 +262,31 @@ void clearScreen()
     // Soft shadow along bottom and right borders (one row/col offset)
     printf("\x1b[38;2;100;100;100m");
     int shadowRow = bottomRow + 1;
-    for (int c = leftCol + 1; c <= rightCol + 1; c++) {
-        if (c == leftCol + 1) {
+    for (int c = leftCol + 1; c <= rightCol + 1; c++)
+    {
+        if (c == leftCol + 1)
+        {
             // leftmost point of bottom shadow: backslash
             printf("\x1b[%d;%dH\\", shadowRow, c);
-        } else {
+        }
+        else
+        {
             printf("\x1b[%d;%dH.", shadowRow, c);
         }
     }
     int shadowCol = rightCol + 1;
-    for (int r = topRow + 1; r <= bottomRow + 1; r++) {
-        if (r == topRow + 1) {
+    for (int r = topRow + 1; r <= bottomRow + 1; r++)
+    {
+        if (r == topRow + 1)
+        {
             // uppermost point of right shadow: backslash
             printf("\x1b[%d;%dH\\", r, shadowCol);
-        } else {
+        }
+        else
+        {
             printf("\x1b[%d;%dH.", r, shadowCol);
         }
     }
-
 
     // Restore main text color (Spotify green)
     printf("\x1b[38;2;30;215;96m");
@@ -273,13 +305,17 @@ void printWithShadowCentered(int y, const char *text)
     // Black shadow: if the text fits within the effective width, draw full-length shadow;
     // otherwise draw the shadow one character shorter to avoid trailing overflow.
     int shadowLen = len;
-    if (len > effectiveWidth) {
+    if (len > effectiveWidth)
+    {
         shadowLen = (len > 0) ? (len - 1) : 0;
     }
-    if (shadowLen > effectiveWidth) shadowLen = effectiveWidth;
-    if (shadowLen > 0) {
+    if (shadowLen > effectiveWidth)
+        shadowLen = effectiveWidth;
+    if (shadowLen > 0)
+    {
         char shadowBuf[256];
-        if (shadowLen >= (int)sizeof(shadowBuf)) shadowLen = (int)sizeof(shadowBuf) - 1;
+        if (shadowLen >= (int)sizeof(shadowBuf))
+            shadowLen = (int)sizeof(shadowBuf) - 1;
         memcpy(shadowBuf, text, shadowLen);
         shadowBuf[shadowLen] = '\0';
         printf("\x1b[%d;%dH\x1b[38;2;0;0;0m%s", y + 1, col + 1, shadowBuf);
@@ -287,6 +323,48 @@ void printWithShadowCentered(int y, const char *text)
 
     // Main text
     printf("\x1b[%d;%dH\x1b[38;2;30;215;96m%s", y, col, text);
+}
+
+// Helper to print the volume as a 10-segment ASCII bar (each segment = 10%)
+void printVolumeBar(int volume)
+{
+    int filled = volume / 10;
+    if (filled < 0)
+        filled = 0;
+    if (filled > 10)
+        filled = 10;
+
+    // Print percent with shadow on the original line (row 21)
+    char percent_line[32];
+    snprintf(percent_line, sizeof(percent_line), "Volume: %3d%%", volume);
+    printWithShadowCentered(21, percent_line);
+
+    // Print 10 single-character segments (one per 10%) two lines below (row 23), centered.
+    int effectiveWidth = SCREEN_WIDTH - 2 * H_MARGIN;
+    int barLen = 10; // 10 single-char segments
+    int x = (effectiveWidth - barLen) / 2;
+    if (x < 0)
+        x = 0;
+    int col = H_MARGIN + x + 1; // 1-based column
+    for (int i = 0; i < 10; i++)
+    {
+        int segCol = col + i;
+        // Draw shadow one row down, one column right (black)
+        printf("\x1b[%d;%dH\x1b[38;2;0;0;0m#", 24, segCol + 1);
+        // Draw main segment on the intended row (23) with color indicating activity
+        if (i < filled)
+        {
+            // Active segment: green '#'
+            printf("\x1b[%d;%dH\x1b[38;2;30;215;96m#", 23, segCol);
+        }
+        else
+        {
+            // Inactive segment: gray '#'
+            printf("\x1b[%d;%dH\x1b[38;2;120;120;120m#", 23, segCol);
+        }
+    }
+    // Restore main text color after drawing
+    printf("\x1b[38;2;30;215;96m");
 }
 
 // Helper to build URLs
@@ -379,7 +457,8 @@ int main(int argc, char **argv)
                 build_url(url, sizeof(url), server_ip, "play");
             fetch(url);
             // If user requested play, immediately show play overlay until server confirms
-            if (!is_playing) setTemporaryPlay(true);
+            if (!is_playing)
+                setTemporaryPlay(true);
             need_refresh = true;
         }
         if (kDown & KEY_DRIGHT)
@@ -469,7 +548,8 @@ int main(int argc, char **argv)
                 if (is_playing_str)
                     is_playing = strcmp(is_playing_str, "true") == 0;
                 setPlaybackPaused(!is_playing);
-                if (is_playing) {
+                if (is_playing)
+                {
                     // Server reports playback is playing — clear temporary play overlay
                     setTemporaryPlay(false);
                 }
@@ -524,10 +604,15 @@ int main(int argc, char **argv)
                     snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
                     printWithShadowCentered(18, device_line);
 
-                    // Volume
-                    char volume_line[64];
-                    snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str);
-                    printWithShadowCentered(21, volume_line);
+                    // Volume - use helper to render as 10-segment ASCII bar
+                    if (volume_str && strcmp(volume_str, "N/A") == 0)
+                    {
+                        printWithShadowCentered(21, "Volume: N/A");
+                    }
+                    else
+                    {
+                        printVolumeBar(volume);
+                    }
                 }
                 // Handle image download/display
                 if (ret == 0 && imageURL && strlen(imageURL) > 0)
