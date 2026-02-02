@@ -214,6 +214,8 @@ int main(int argc, char **argv)
             else
                 build_url(url, sizeof(url), server_ip, "play");
             fetch(url);
+            // If user requested play, immediately show play overlay until server confirms
+            if (!is_playing) setTemporaryPlay(true);
             need_refresh = true;
         }
         if (kDown & KEY_DRIGHT)
@@ -299,6 +301,14 @@ int main(int argc, char **argv)
                 track = get("name", json);
                 artist = get("artist", json);
                 is_playing_str = get("is_playing", json);
+                // update playback paused overlay
+                if (is_playing_str)
+                    is_playing = strcmp(is_playing_str, "true") == 0;
+                setPlaybackPaused(!is_playing);
+                if (is_playing) {
+                    // Server reports playback is playing — clear temporary play overlay
+                    setTemporaryPlay(false);
+                }
                 device_name = get("device", json);
                 volume_str = get("volume_percent", json);
                 imageURL = get("image_url", json);

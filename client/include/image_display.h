@@ -21,6 +21,13 @@ u8* downloadImage(const char* url, u32* size);
 void drawImageToScreen(u8* pixels, int width, int height);
 
 /**
+ * @brief Tell the image renderer whether playback is paused.
+ * When paused is true a pause icon will be drawn over the image.
+ */
+void setPlaybackPaused(bool paused);
+void setTemporaryPlay(bool show);
+
+/**
  * @brief Initialize network services required for downloading images
  * @return 0 on success, error code on failure
  */
