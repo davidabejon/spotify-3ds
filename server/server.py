@@ -38,6 +38,19 @@ def _contains_hangul(s: str) -> bool:
 
 app = FastAPI()
 
+
+def _safe_json(resp):
+    """Try to decode JSON from a requests.Response; on failure return a fallback dict."""
+    try:
+        return resp.json()
+    except Exception:
+        text = None
+        try:
+            text = resp.text
+        except Exception:
+            text = None
+        return {"error_text": text if text else f"HTTP {resp.status_code}"}
+
 spotify_config_path = "spotify_config.json"
 redirect_uri = "http://localhost:8000/callback"
 required_scopes = "user-read-playback-state user-modify-playback-state"
@@ -66,8 +79,8 @@ def get_access_token():
         data = {"grant_type": "refresh_token", "refresh_token": config["refresh_token"]}
         resp = requests.post("https://accounts.spotify.com/api/token", data=data, headers=headers)
         if resp.status_code != 200:
-            return None, resp.json()
-        return resp.json(), None
+            return None, _safe_json(resp)
+        return _safe_json(resp), None
 
     # If no refresh_token, exchange code (can only be done once)
     if "code" not in config:
@@ -76,9 +89,9 @@ def get_access_token():
     data = {"grant_type": "authorization_code", "code": config["code"], "redirect_uri": redirect_uri}
     resp = requests.post("https://accounts.spotify.com/api/token", data=data, headers=headers)
     if resp.status_code != 200:
-        return None, resp.json()
+        return None, _safe_json(resp)
 
-    token_data = resp.json()
+    token_data = _safe_json(resp)
     # Save refresh_token and remove code
     config["refresh_token"] = token_data.get("refresh_token")
     config.pop("code", None)
@@ -169,11 +182,15 @@ def now_playing_and_state():
     if resp_track.status_code == 204:
         result["track"] = {"status": "no track playing"}
     elif resp_track.status_code != 200:
-        result["track"] = {"error": resp_track.json()}
+        result["track"] = {"error": _safe_json(resp_track)}
     else:
-        data = resp_track.json()
-        name = data["item"]["name"]
-        artist_name = data["item"]["artists"][0]["name"]
+        data = _safe_json(resp_track)
+        # If we couldn't parse JSON, return the raw text in the error
+        if not isinstance(data, dict) or "item" not in data:
+            result["track"] = {"error": data}
+        else:
+            name = data["item"]["name"]
+            artist_name = data["item"]["artists"][0]["name"]
 
         # Romanize if needed (replace with romanized text for client simplicity)
         if _contains_non_latin(name):
@@ -210,14 +227,20 @@ def now_playing_and_state():
     if resp_state.status_code == 204:
         result["player_state"] = {"status": "no active device"}
     elif resp_state.status_code != 200:
-        result["player_state"] = {"error": resp_state.json()}
+        result["player_state"] = {"error": _safe_json(resp_state)}
     else:
-        data = resp_state.json()
-        result["player_state"] = {
-            "device": data["device"]["name"],
-            "volume_percent": data["device"]["volume_percent"],
-        }
-        result["image_url"] = data["item"]["album"]["images"][0]["url"]
+        data = _safe_json(resp_state)
+        if not isinstance(data, dict) or "device" not in data:
+            result["player_state"] = {"error": data}
+        else:
+            result["player_state"] = {
+                "device": data["device"]["name"],
+                "volume_percent": data["device"]["volume_percent"],
+            }
+            try:
+                result["image_url"] = data["item"]["album"]["images"][0]["url"]
+            except Exception:
+                pass
 
     return JSONResponse(result)
 
