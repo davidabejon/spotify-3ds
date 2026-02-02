@@ -1,6 +1,40 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import json, os, requests, base64
+from pykakasi import kakasi
+from unidecode import unidecode
+
+# Initialize pykakasi converter (Kanji/Hiragana/Katakana -> Latin)
+_kakasi_conv = None
+try:
+    _k = kakasi()
+    _k.setMode("J", "a")
+    _k.setMode("H", "a")
+    _k.setMode("K", "a")
+    _k.setMode("r", "Hepburn")
+    _k.setMode("s", True)
+    _kakasi_conv = _k.getConverter()
+except Exception:
+    _kakasi_conv = None
+
+def _contains_non_latin(s: str) -> bool:
+    if not s:
+        return False
+    for ch in s:
+        if ord(ch) > 127:
+            return True
+    return False
+
+
+def _contains_hangul(s: str) -> bool:
+    if not s:
+        return False
+    for ch in s:
+        cp = ord(ch)
+        # Hangul Syllables range
+        if 0xAC00 <= cp <= 0xD7AF:
+            return True
+    return False
 
 app = FastAPI()
 
@@ -138,9 +172,36 @@ def now_playing_and_state():
         result["track"] = {"error": resp_track.json()}
     else:
         data = resp_track.json()
+        name = data["item"]["name"]
+        artist_name = data["item"]["artists"][0]["name"]
+
+        # Romanize if needed (replace with romanized text for client simplicity)
+        if _contains_non_latin(name):
+            try:
+                if _contains_hangul(name):
+                    # Use Unidecode for Hangul/Korean
+                    name = unidecode(name)
+                elif _kakasi_conv:
+                    name = _kakasi_conv.do(name)
+                else:
+                    name = unidecode(name)
+            except Exception:
+                pass
+
+        if _contains_non_latin(artist_name):
+            try:
+                if _contains_hangul(artist_name):
+                    artist_name = unidecode(artist_name)
+                elif _kakasi_conv:
+                    artist_name = _kakasi_conv.do(artist_name)
+                else:
+                    artist_name = unidecode(artist_name)
+            except Exception:
+                pass
+
         result["track"] = {
-            "name": data["item"]["name"],
-            "artist": data["item"]["artists"][0]["name"],
+            "name": name,
+            "artist": artist_name,
             "album": data["item"]["album"]["name"],
             "is_playing": data["is_playing"]
         }
