@@ -337,9 +337,9 @@ void printVolumeBar(int volume)
     // Print percent with shadow on the original line (row 21)
     char percent_line[32];
     snprintf(percent_line, sizeof(percent_line), "Volume: %3d%%", volume);
-    printWithShadowCentered(21, percent_line);
+    printWithShadowCentered(20, percent_line);
 
-    // Print 10 single-character segments (one per 10%) two lines below (row 23), centered.
+    // Print 10 single-character segments (one per 10%) two lines below (row 22), centered.
     int effectiveWidth = SCREEN_WIDTH - 2 * H_MARGIN;
     int barLen = 10; // 10 single-char segments
     int x = (effectiveWidth - barLen) / 2;
@@ -350,17 +350,17 @@ void printVolumeBar(int volume)
     {
         int segCol = col + i;
         // Draw shadow one row down, one column right (black)
-        printf("\x1b[%d;%dH\x1b[38;2;0;0;0m#", 24, segCol + 1);
-        // Draw main segment on the intended row (23) with color indicating activity
+        printf("\x1b[%d;%dH\x1b[38;2;0;0;0m#", 23, segCol + 1);
+        // Draw main segment on the intended row (22) with color indicating activity
         if (i < filled)
         {
             // Active segment: green '#'
-            printf("\x1b[%d;%dH\x1b[38;2;30;215;96m#", 23, segCol);
+            printf("\x1b[%d;%dH\x1b[38;2;30;215;96m#", 22, segCol);
         }
         else
         {
             // Inactive segment: gray '#'
-            printf("\x1b[%d;%dH\x1b[38;2;120;120;120m#", 23, segCol);
+            printf("\x1b[%d;%dH\x1b[38;2;120;120;120m#", 22, segCol);
         }
     }
     // Restore main text color after drawing
@@ -591,23 +591,23 @@ int main(int argc, char **argv)
                              is_playing ? "Now playing:" : "Playback paused:");
 
                     // Status - centered with shadow
-                    printWithShadowCentered(8, line1);
+                    printWithShadowCentered(7, line1);
 
                     // Track - use marquee-aware printing
-                    printMarqueeLine(11, track);
+                    printMarqueeLine(10, track);
 
                     // Artist - centered with shadow
-                    printWithShadowCentered(14, artist);
+                    printWithShadowCentered(13, artist);
 
                     // Playing in device
                     char device_line[128];
                     snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
-                    printWithShadowCentered(18, device_line);
+                    printWithShadowCentered(17, device_line);
 
                     // Volume - use helper to render as 10-segment ASCII bar
                     if (volume_str && strcmp(volume_str, "N/A") == 0)
                     {
-                        printWithShadowCentered(21, "Volume: N/A");
+                        printWithShadowCentered(20, "Volume: N/A");
                     }
                     else
                     {
@@ -681,7 +681,7 @@ int main(int argc, char **argv)
             }
 
             // Always draw the track line (centered or marquee) each frame so animation updates
-            printMarqueeLine(11, track);
+            printMarqueeLine(10, track);
         }
 
         gspWaitForVBlank();
