@@ -14,6 +14,11 @@ static bool network_initialized = false;
 static bool playback_paused = false;
 // Temporary play overlay (shown until server confirms play)
 static bool temp_play_overlay = false;
+// Overlay animation state
+static int overlay_alpha = 0; // 0..255
+// 0 = none, 1 = temp play, 2 = pause
+static int current_overlay = 0;
+static const int overlay_fade_step = 85; // alpha change per frame (higher = faster)
 
 void setPlaybackPaused(bool paused)
 {
@@ -474,8 +479,33 @@ void drawImageToScreen(u8 *pixels, int width, int height)
         }
     }
 
-    // If a temporary play overlay was requested (user pressed A to play), draw it first
-    if (temp_play_overlay)
+    // Update overlay animation state (fade in/out)
+    int desired_overlay = temp_play_overlay ? 1 : (playback_paused ? 2 : 0);
+
+    // If a new overlay is requested while none was active, switch to it to start fading in.
+    if (desired_overlay != 0 && current_overlay != desired_overlay)
+    {
+        current_overlay = desired_overlay;
+    }
+
+    int target_alpha = (desired_overlay != 0) ? 255 : 0;
+    if (target_alpha > overlay_alpha)
+    {
+        int next = overlay_alpha + overlay_fade_step;
+        overlay_alpha = (next > target_alpha) ? target_alpha : next;
+    }
+    else if (target_alpha < overlay_alpha)
+    {
+        int next = overlay_alpha - overlay_fade_step;
+        overlay_alpha = (next < target_alpha) ? target_alpha : next;
+    }
+
+    // If we've fully faded out and nothing desired, clear current overlay
+    if (overlay_alpha == 0 && desired_overlay == 0)
+        current_overlay = 0;
+
+    // If an overlay is currently active (possibly fading), draw it using overlay_alpha
+    if (current_overlay == 1)
     {
         // Icon size: larger (roughly 2/3 of scaled image)
         int iconW = (scaledWidth * 2) / 3;
@@ -491,7 +521,8 @@ void drawImageToScreen(u8 *pixels, int width, int height)
         int iconEndY = iconStartY + iconH;
 
         const int iconCorner = 12;
-        const int bgAlpha = 200; // background overlay alpha (stronger)
+        const int bgBaseAlpha = 200; // background overlay alpha (stronger)
+        int bgAlpha = (bgBaseAlpha * overlay_alpha) / 255;
 
         // Draw rounded dark background (same as pause)
         for (int y = iconStartY; y < iconEndY; y++) {
@@ -575,12 +606,19 @@ void drawImageToScreen(u8 *pixels, int width, int height)
                     int fbIdx = (fbX + fbY * 240) * 3;
                     int maxFbIdx = fbWidth * fbHeight * 3 - 3;
                     if (fbIdx < 0 || fbIdx > maxFbIdx) continue;
-                    fb[fbIdx + 0] = 255; fb[fbIdx + 1] = 255; fb[fbIdx + 2] = 255;
+                    // Blend white triangle using overlay_alpha
+                    u8 dstB = fb[fbIdx + 0];
+                    u8 dstG = fb[fbIdx + 1];
+                    u8 dstR = fb[fbIdx + 2];
+                    int a = overlay_alpha;
+                    fb[fbIdx + 0] = (u8)((a * 255 + (255 - a) * dstB) / 255);
+                    fb[fbIdx + 1] = (u8)((a * 255 + (255 - a) * dstG) / 255);
+                    fb[fbIdx + 2] = (u8)((a * 255 + (255 - a) * dstR) / 255);
                 }
             }
         }
     }
-    else if (playback_paused)
+    else if (current_overlay == 2)
     {
         // Icon size: larger (roughly 2/3 of scaled image)
         int iconW = (scaledWidth * 2) / 3;
@@ -596,7 +634,8 @@ void drawImageToScreen(u8 *pixels, int width, int height)
         int iconEndY = iconStartY + iconH;
 
         const int iconCorner = 12;
-        const int bgAlpha = 200; // background overlay alpha (stronger)
+        const int bgBaseAlpha = 200; // background overlay alpha (stronger)
+        int bgAlpha = (bgBaseAlpha * overlay_alpha) / 255;
 
         for (int y = iconStartY; y < iconEndY; y++) {
             for (int x = iconStartX; x < iconEndX; x++) {
@@ -641,7 +680,7 @@ void drawImageToScreen(u8 *pixels, int width, int height)
                 int maxFbIdx = fbWidth * fbHeight * 3 - 3;
                 if (fbIdx < 0 || fbIdx > maxFbIdx) continue;
 
-                // Blend dark background
+                // Blend dark background (scaled by overlay alpha)
                 const int sB = 10, sG = 10, sR = 10;
                 u8 dstB = fb[fbIdx + 0];
                 u8 dstG = fb[fbIdx + 1];
@@ -668,7 +707,14 @@ void drawImageToScreen(u8 *pixels, int width, int height)
                 int fbIdx = (fbX + fbY * 240) * 3;
                 int maxFbIdx = fbWidth * fbHeight * 3 - 3;
                 if (fbIdx < 0 || fbIdx > maxFbIdx) continue;
-                fb[fbIdx + 0] = 255; fb[fbIdx + 1] = 255; fb[fbIdx + 2] = 255;
+                // Blend white pause bar using overlay_alpha
+                u8 dstB = fb[fbIdx + 0];
+                u8 dstG = fb[fbIdx + 1];
+                u8 dstR = fb[fbIdx + 2];
+                int a = overlay_alpha;
+                fb[fbIdx + 0] = (u8)((a * 255 + (255 - a) * dstB) / 255);
+                fb[fbIdx + 1] = (u8)((a * 255 + (255 - a) * dstG) / 255);
+                fb[fbIdx + 2] = (u8)((a * 255 + (255 - a) * dstR) / 255);
             }
             for (int x = rightBarX; x < rightBarX + barW; x++) {
                 if (x < 0 || x >= 400 || y < 0 || y >= 240) continue;
@@ -677,7 +723,13 @@ void drawImageToScreen(u8 *pixels, int width, int height)
                 int fbIdx = (fbX + fbY * 240) * 3;
                 int maxFbIdx = fbWidth * fbHeight * 3 - 3;
                 if (fbIdx < 0 || fbIdx > maxFbIdx) continue;
-                fb[fbIdx + 0] = 255; fb[fbIdx + 1] = 255; fb[fbIdx + 2] = 255;
+                u8 dstB = fb[fbIdx + 0];
+                u8 dstG = fb[fbIdx + 1];
+                u8 dstR = fb[fbIdx + 2];
+                int a = overlay_alpha;
+                fb[fbIdx + 0] = (u8)((a * 255 + (255 - a) * dstB) / 255);
+                fb[fbIdx + 1] = (u8)((a * 255 + (255 - a) * dstG) / 255);
+                fb[fbIdx + 2] = (u8)((a * 255 + (255 - a) * dstR) / 255);
             }
         }
     }
