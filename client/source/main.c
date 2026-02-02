@@ -98,10 +98,31 @@ char *askUser(const char *prompt)
     return inputbuf;
 }
 
+// Make bottomConsole file-scope so clearScreen can use it
+static PrintConsole bottomConsole;
+
 // Clear screen
 void clearScreen()
 {
+    // Set background to light gray (252), foreground to green (Spotify green: 46)
+    printf("\x1b[48;2;30;33;36m");  // Darker background (almost black)
+    printf("\x1b[38;2;30;215;96m"); // Text color
     printf("\x1b[2J");
+}
+
+void printWithShadowCentered(int y, const char *text)
+{
+    int len = strlen(text);
+    int x = (SCREEN_WIDTH - len) / 2;
+
+    if (x < 1)
+        x = 1;
+
+    // Black shadow, offset by 1
+    printf("\x1b[%d;%dH\x1b[38;2;0;0;0m%s", y + 1, x + 1, text);
+
+    // Main text
+    printf("\x1b[%d;%dH\x1b[38;2;30;215;96m%s", y, x, text);
 }
 
 // Helper to build URLs
@@ -116,7 +137,6 @@ int main(int argc, char **argv)
     cfguInit();
     httpcInit(0);
     Result ret = initNetwork();
-    PrintConsole bottomConsole;
     consoleInit(GFX_BOTTOM, &bottomConsole);
     consoleSelect(&bottomConsole);
     bool is_playing = false;
@@ -234,6 +254,12 @@ int main(int argc, char **argv)
             }
         }
 
+        // declare previous state variables for comparison
+        static char prev_track[128] = "";
+        static char prev_artist[128] = "";
+        static char prev_device_name[128] = "";
+        static int prev_volume = -1;
+        static bool prev_is_playing = false;
         // Start async fetch if needed and not already in progress
         if ((need_refresh || (currentTick - lastTick >= 5000)) && !fetchInProgress)
         {
@@ -291,44 +317,44 @@ int main(int argc, char **argv)
                 else
                     volume = atoi(volume_str);
 
-                clearScreen();
+                // only clear the screen if the data is different from before
+                if (strcmp(track, prev_track) != 0 || strcmp(artist, prev_artist) != 0 || strcmp(device_name, prev_device_name) != 0 || volume != prev_volume || is_playing != prev_is_playing)
+                {
+                    clearScreen();
+                    // Save current state as previous
+                    strncpy(prev_track, track, sizeof(prev_track) - 1);
+                    prev_track[sizeof(prev_track) - 1] = '\0';
+                    strncpy(prev_artist, artist, sizeof(prev_artist) - 1);
+                    prev_artist[sizeof(prev_artist) - 1] = '\0';
+                    strncpy(prev_device_name, device_name, sizeof(prev_device_name) - 1);
+                    prev_device_name[sizeof(prev_device_name) - 1] = '\0';
+                    prev_volume = volume;
+                    prev_is_playing = is_playing;
 
-                // Status with spacing
-                char line1[64];
-                snprintf(line1, sizeof(line1),
-                         is_playing ? "Now playing:" : "Playback paused:");
-                int col1 = center(line1, SCREEN_WIDTH);
-                printf("\x1b[1;1H\n"); // Space
+                    // Status with spacing
+                    char line1[64];
+                    snprintf(line1, sizeof(line1),
+                             is_playing ? "Now playing:" : "Playback paused:");
 
-                // Status
-                printf("\x1b[2;%dH%s\n", col1 + 1, line1);
+                    // First line on row 11
+                    printWithShadowCentered(9, line1);
 
-                printf("\x1b[3;1H\n"); // Space
+                    // Track - centered with shadow (2 rows below)
+                    printWithShadowCentered(12, track);
 
-                // Track
-                int col_track = center(track, SCREEN_WIDTH);
-                printf("\x1b[4;%dH%s\n", col_track + 1, track);
+                    // Artist - centered with shadow (2 rows below)
+                    printWithShadowCentered(15, artist);
 
-                printf("\x1b[5;1H\n"); // Space
+                    // Playing in device (2 rows below)
+                    char device_line[128];
+                    snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
+                    printWithShadowCentered(18, device_line);
 
-                // Artist
-                int col_artist = center(artist, SCREEN_WIDTH);
-                printf("\x1b[6;%dH%s", col_artist + 1, artist);
-
-                // Playing in device
-                char device_line[128];
-                snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
-                int col_device = center(device_line, SCREEN_WIDTH);
-                printf("\x1b[8;%dH%s\n", col_device + 1, device_line);
-
-                printf("\x1b[9;1H\n"); // Space
-
-                // Volume
-                char volume_line[64];
-                snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str);
-                int col_volume = center(volume_line, SCREEN_WIDTH);
-                printf("\x1b[10;%dH%s\n", col_volume + 1, volume_line);
-
+                    // Volume (2 rows below)
+                    char volume_line[64];
+                    snprintf(volume_line, sizeof(volume_line), "Volume: %s%%", volume_str);
+                    printWithShadowCentered(21, volume_line);
+                }
                 // Handle image download/display
                 if (ret == 0 && imageURL && strlen(imageURL) > 0)
                 {
