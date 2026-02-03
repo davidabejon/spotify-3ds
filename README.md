@@ -48,7 +48,7 @@ You can deploy the server with Docker (recommended) or run it directly with Pyth
 
 1. Clone the repo and enter the server folder:
    ```sh
-   git clone https://github.com/<user>/spotify-3ds.git
+   git clone https://github.com/davidabejon/spotify-3ds.git
    cd spotify-3ds/server
    ```
 
@@ -72,14 +72,6 @@ You can deploy the server with Docker (recommended) or run it directly with Pyth
    ```
    - If the main module name differs adjust `module:app` accordingly.
    - On first run the server will show or open the authorization URL; complete the flow in the browser so the `refresh_token` is saved to `spotify_config.json`.
-
-6. Test endpoints:
-   - `http://localhost:8000/authorize` — start the authorization.
-   - `http://localhost:8000/now-playing` — returns current track/state (used by the 3DS client).
-
-Notes:
-- On Linux/macOS activate the venv with `source .venv/bin/activate`.
-- For development use `--reload`; for production run behind a process manager or in Docker.
 
 ### 2) 3DS Application
 - Easiest: download `Spotify3DS.cia` from [Releases](https://github.com/davidabejon/spotify-3ds/releases), copy to the SD card and install with FBI or another CIA installer

@@ -43,7 +43,7 @@ Este repositorio contiene:
 
 1. Clona el repositorio y entra en la carpeta del servidor:
    ```sh
-   git clone https://github.com/<usuario>/spotify-3ds.git
+   git clone https://github.com/davidabejon/spotify-3ds.git
    cd spotify-3ds/server
    ```
 
