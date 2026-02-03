@@ -2,6 +2,13 @@
 
 Cliente no oficial de Spotify para Nintendo 3DS (proxy + aplicación 3DS).
 
+<table>
+  <tr>
+    <td><img src="https://i.imgur.com/BiwIS82.png" alt="Top playing" width="320"></td>
+    <td><img src="https://i.imgur.com/ppvuOb7.png" alt="Bottom playing" width="320"></td>
+  </tr>
+</table>
+
 ## Resumen
 Este repositorio contiene:
 - Un servidor proxy (FastAPI) que gestiona la autenticación con Spotify y expone endpoints para la consola: [server/server.py](server/server.py) — ver también [server/Dockerfile](server/Dockerfile) y [server/spotify_config.json](server/spotify_config.json).
