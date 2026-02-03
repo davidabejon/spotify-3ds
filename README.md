@@ -81,6 +81,15 @@ On first run the app will prompt you to enter the proxy server's IP address; aft
 
 To change the IP later, press Y to reopen the on-screen keyboard and enter a new address.
 
+#### Controls
+ - A — Play / Pause
+ - Y — Open IP entry (on-screen keyboard)
+ - D-Pad Right — Next track
+ - D-Pad Left — Previous track
+ - D-Pad Up — Volume up
+ - D-Pad Down — Volume down
+ - START — Exit the app
+
 ## License and credits
 - License: Apache License 2.0 — see the `LICENSE` file at the repository root.
 - Original author: David Abejón.

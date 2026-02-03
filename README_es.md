@@ -74,7 +74,16 @@ Este repositorio contiene:
 
 Al iniciar la aplicación por primera vez, te pedirá la dirección IP del servidor proxy; tras introducirla intentará conectarse automáticamente.
 
-Para cambiar la IP más tarde, pulsa Y para volver a abrir el teclado en pantalla y escribe la nueva dirección.
+Para cambiar la IP más tarde, pulsa Y para volver a abrir el teclado en pantalla y escribe la nueva dirección IP.
+
+#### Controles
+ - A — Reproducir / Pausar
+ - Y — Abrir entrada de IP (teclado en pantalla)
+ - Cruceta derecha — Siguiente canción
+ - Cruceta izquierda — Anterior canción
+ - Cruceta arriba — Subir volumen
+ - Cruceta abajo — Bajar volumen
+ - Botón START — Salir de la aplicación
 
 ## Licencia y créditos
 - Licencia: Apache License 2.0 — ver el archivo `LICENSE` en la raíz del repositorio.
