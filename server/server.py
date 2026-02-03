@@ -101,10 +101,6 @@ def get_access_token():
     return token_data, None
 
 # Create FastAPI app with lifespan handling
-# ----------------------------
-# Serve HTML
-# ----------------------------
-
 @asynccontextmanager
 async def lifespan(app):
     # On server start, read spotify_config.json and, if client_id/client_secret
