@@ -2,12 +2,10 @@
 
 Cliente no oficial de Spotify para Nintendo 3DS (proxy + aplicación 3DS).
 
-<table>
-  <tr>
-    <td><img src="https://i.imgur.com/BiwIS82.png" alt="Top playing" width="320"></td>
-    <td><img src="https://i.imgur.com/ppvuOb7.png" alt="Bottom playing" width="320"></td>
-  </tr>
-</table>
+<div style="display: flex; gap: 10px">
+  <img src="https://i.imgur.com/BiwIS82.png" alt="Top playing" width="350">
+  <img src="https://i.imgur.com/ppvuOb7.png" alt="Bottom playing" width="350">
+</div>
 
 ## Resumen
 Este repositorio contiene:

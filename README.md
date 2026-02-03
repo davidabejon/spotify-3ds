@@ -4,12 +4,10 @@ Nota: Esta documentación también está disponible en español: `README_es.md`
 
 Unofficial Spotify client for the Nintendo 3DS (proxy + 3DS application).
 
-<table>
-  <tr>
-    <td><img src="https://i.imgur.com/BiwIS82.png" alt="Top playing" width="320"></td>
-    <td><img src="https://i.imgur.com/ppvuOb7.png" alt="Bottom playing" width="320"></td>
-  </tr>
-</table>
+<div style="display: flex; gap: 10px">
+  <img src="https://i.imgur.com/BiwIS82.png" alt="Top playing" width="350">
+  <img src="https://i.imgur.com/ppvuOb7.png" alt="Bottom playing" width="350">
+</div>
 
 ## Overview
 This repository contains:
