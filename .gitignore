@@ -27,8 +27,5 @@ Thumbs.db
 *.swp
 *.swo
 
-# Ignore config and secrets
-server/spotify_config.json
-
 # Ignore VSCode settings
 .vscode/

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-import json, os, requests, base64
+import json, os, requests, base64, webbrowser
+from contextlib import asynccontextmanager
 from pykakasi import kakasi
 from unidecode import unidecode
 
@@ -36,7 +37,6 @@ def _contains_hangul(s: str) -> bool:
             return True
     return False
 
-app = FastAPI()
 
 
 def _safe_json(resp):
@@ -52,7 +52,7 @@ def _safe_json(resp):
         return {"error_text": text if text else f"HTTP {resp.status_code}"}
 
 spotify_config_path = "spotify_config.json"
-redirect_uri = "http://localhost:8000/callback"
+redirect_uri = "http://127.0.0.1:8000/callback"
 required_scopes = "user-read-playback-state user-modify-playback-state"
 
 # ----------------------------
@@ -100,14 +100,62 @@ def get_access_token():
 
     return token_data, None
 
+# Create FastAPI app with lifespan handling
 # ----------------------------
 # Serve HTML
 # ----------------------------
-@app.get("/", response_class=HTMLResponse)
-async def serve_html():
-    with open("templates/index.html", "r", encoding="utf-8") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content)
+
+@asynccontextmanager
+async def lifespan(app):
+    # On server start, read spotify_config.json and, if client_id/client_secret
+    # are present but no refresh_token or code exists, open the Spotify
+    # authorization URL in the default browser so the user can complete auth.
+    try:
+        if not os.path.exists(spotify_config_path):
+            yield
+            return
+
+        with open(spotify_config_path, "r", encoding="utf-8") as f:
+            cfg_text = f.read()
+            if not cfg_text:
+                yield
+                return
+            cfg = json.loads(cfg_text)
+    except Exception:
+        yield
+        return
+
+    client_id = cfg.get("client_id")
+    client_secret = cfg.get("client_secret")
+    has_code = "code" in cfg
+    has_refresh = "refresh_token" in cfg
+
+    if client_id and client_secret and not (has_code or has_refresh):
+        auth_url = (
+            "https://accounts.spotify.com/authorize"
+            f"?client_id={client_id}"
+            "&response_type=code"
+            f"&redirect_uri={redirect_uri}"
+            f"&scope={required_scopes}"
+        )
+        try:
+            webbrowser.open(auth_url)
+            print(f"Opened browser for Spotify authorization: {auth_url}")
+        except Exception:
+            print("Please open the following URL to authorize the app:")
+            print(auth_url)
+    elif not client_id or not client_secret:
+        print("WARNING: Missing client_id or client_secret in spotify_config.json.\nCheck README.md file for instructions.")
+
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/")
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 # ----------------------------
 # Spotify callback
