@@ -176,6 +176,32 @@ u8 *downloadImage(const char *url, u32 *size)
     return buffer;
 }
 
+void drawGradient(u8 *fb, u16 fbWidth, u16 fbHeight)
+{
+    const int screenW = 400;
+    const int screenH = 240;
+    const int topB = 30, topG = 80, topR = 40;
+    // Softer/dessaturated bottom color to reduce contrast
+    const int botB = 70, botG = 200, botR = 55;
+
+    for (int y = 0; y < screenH; y++) {
+        float t = (float)y / (float)(screenH - 1);
+        u8 colB = (u8)((1.0f - t) * topB + t * botB);
+        u8 colG = (u8)((1.0f - t) * topG + t * botG);
+        u8 colR = (u8)((1.0f - t) * topR + t * botR);
+
+        for (int x = 0; x < screenW; x++) {
+            int fbX = 239 - y;
+            int fbY = x;
+            if (fbX < 0 || fbX >= fbWidth || fbY < 0 || fbY >= fbHeight) continue;
+            int fbIdx = (fbX + fbY * fbWidth) * 3;
+            fb[fbIdx + 0] = colB;
+            fb[fbIdx + 1] = colG;
+            fb[fbIdx + 2] = colR;
+        }
+    }
+}
+
 void drawImageToScreen(u8 *pixels, int width, int height)
 {
     if (!pixels || width <= 0 || height <= 0)
@@ -192,12 +218,7 @@ void drawImageToScreen(u8 *pixels, int width, int height)
         return; // No framebuffer
     }
 
-    // Fill the framebuffer with a solid color (e.g., dark gray) before drawing
-    for (int i = 0; i < fbWidth * fbHeight; i++) {
-        fb[i * 3 + 0] = 96;   // Blue
-        fb[i * 3 + 1] = 215;  // Green
-        fb[i * 3 + 2] = 30;   // Red
-    }
+    drawGradient(fb, fbWidth, fbHeight);
 
     // The top screen is 400x240 but framebuffer is 240x400 (rotated)
     // Calculate scale to fit the entire image (accounting for 4px border on each side)
@@ -748,13 +769,9 @@ void drawBackgroundToScreen()
         return; // No framebuffer
     }
 
-    for (int i = 0; i < fbWidth * fbHeight; i++)
-    {
-        fb[i * 3 + 0] = 96;   // Blue
-        fb[i * 3 + 1] = 215;  // Green
-        fb[i * 3 + 2] = 30;   // Red
-    }
+    drawGradient(fb, fbWidth, fbHeight);
 
     gfxFlushBuffers();
     gfxSwapBuffers();
 }
+
