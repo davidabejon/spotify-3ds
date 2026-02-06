@@ -21,6 +21,14 @@ u8* downloadImage(const char* url, u32* size);
 void drawImageToScreen(u8* pixels, int width, int height);
 
 /**
+ * @brief Fill the top screen with a solid color (used when no image is available)
+ * @param r Red component (0-255)
+ * @param g Green component (0-255)
+ * @param b Blue component (0-255)
+ */
+void drawBackgroundToScreen();
+
+/**
  * @brief Tell the image renderer whether playback is paused.
  * When paused is true a pause icon will be drawn over the image.
  */

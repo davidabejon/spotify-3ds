@@ -585,33 +585,43 @@ int main(int argc, char **argv)
                     prev_volume = volume;
                     prev_is_playing = is_playing;
 
-                    // Status with spacing
-                    char line1[64];
-                    snprintf(line1, sizeof(line1),
-                             is_playing ? "Now playing:" : "Playback paused:");
-
-                    // Status - centered with shadow
-                    printWithShadowCentered(7, line1);
-
-                    // Track - use marquee-aware printing
-                    printMarqueeLine(10, track);
-
-                    // Artist - centered with shadow
-                    printWithShadowCentered(13, artist);
-
-                    // Playing in device
-                    char device_line[128];
-                    snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
-                    printWithShadowCentered(17, device_line);
-
-                    // Volume - use helper to render as 10-segment ASCII bar
-                    if (volume_str && strcmp(volume_str, "N/A") == 0)
+                    if (strcmp(track, "Unknown") == 0 && strcmp(artist, "Unknown") == 0)
                     {
-                        printWithShadowCentered(20, "Volume: N/A");
+                        const char *no_data_msg = "Spotify session is not active";
+                        const char *no_data_msg2 = "Play a song now!";
+                        printWithShadowCentered(13, no_data_msg);
+                        printWithShadowCentered(16, no_data_msg2);
                     }
                     else
                     {
-                        printVolumeBar(volume);
+                        // Status with spacing
+                        char line1[64];
+                        snprintf(line1, sizeof(line1),
+                                 is_playing ? "Now playing:" : "Playback paused:");
+
+                        // Status - centered with shadow
+                        printWithShadowCentered(7, line1);
+
+                        // Track - use marquee-aware printing
+                        printMarqueeLine(10, track);
+
+                        // Artist - centered with shadow
+                        printWithShadowCentered(13, artist);
+
+                        // Playing in device
+                        char device_line[128];
+                        snprintf(device_line, sizeof(device_line), "Playing on: %s", device_name);
+                        printWithShadowCentered(17, device_line);
+
+                        // Volume - use helper to render as 10-segment ASCII bar
+                        if (volume_str && strcmp(volume_str, "N/A") == 0)
+                        {
+                            printWithShadowCentered(20, "Volume: N/A");
+                        }
+                        else
+                        {
+                            printVolumeBar(volume);
+                        }
                     }
                 }
                 // Handle image download/display
@@ -657,9 +667,13 @@ int main(int argc, char **argv)
         }
 
         // Draw image if we have one
-        if (imagePixels)
+        if (imagePixels && imageURL)
         {
             drawImageToScreen(imagePixels, imageWidth, imageHeight);
+        }
+        else
+        {
+            drawBackgroundToScreen();
         }
 
         // Update marquee scroll state for long track titles
@@ -682,7 +696,8 @@ int main(int argc, char **argv)
             }
 
             // Always draw the track line (centered or marquee) each frame so animation updates
-            printMarqueeLine(10, track);
+            if (strcmp(track, "Unknown") != 0)
+                printMarqueeLine(10, track);
         }
 
         gspWaitForVBlank();

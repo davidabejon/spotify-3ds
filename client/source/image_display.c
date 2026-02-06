@@ -737,3 +737,24 @@ void drawImageToScreen(u8 *pixels, int width, int height)
     gfxFlushBuffers();
     gfxSwapBuffers();
 }
+
+void drawBackgroundToScreen()
+{
+    u16 fbWidth, fbHeight;
+    u8 *fb = gfxGetFramebuffer(GFX_TOP, GFX_LEFT, &fbWidth, &fbHeight);
+
+    if (!fb)
+    {
+        return; // No framebuffer
+    }
+
+    for (int i = 0; i < fbWidth * fbHeight; i++)
+    {
+        fb[i * 3 + 0] = 96;   // Blue
+        fb[i * 3 + 1] = 215;  // Green
+        fb[i * 3 + 2] = 30;   // Red
+    }
+
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+}
